@@ -18,16 +18,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
-import { sepolia } from 'wagmi/chains';
-import { createPublicClient, http, formatEther, formatUnits, erc20Abi } from "viem";
+import { formatEther, formatUnits, erc20Abi, http, createPublicClient } from "viem";
 import { CurrencyEnum } from "@/config";
 import { useAtom } from "jotai";
 import { accountBalanceDataAtom, BalanceData } from "./atoms";
-
-const client = createPublicClient({
-  chain: sepolia,
-  transport: http(),
-});
+import { publicClient } from "@/config/wagmi";
 
 export const getSolTokenMintAddress = (tokenSymbol: string, network: string) => {
   const mintAddresses: Record<string, Record<string, string>> = {
@@ -44,16 +39,15 @@ export const getSolTokenMintAddress = (tokenSymbol: string, network: string) => 
   return mintAddresses[network]?.[tokenSymbol];
 };
 
-
-export const useGetBalance = ({ solPublicKey, evmAddress = '' }: { solPublicKey?: PublicKey, evmAddress?: string }) => {
+export const useGetBalance = ({ solAddress, evmAddress = '' }: { solAddress?: string, evmAddress?: string }) => {
   const { connection } = useConnection();
   const { cluster } = useCluster();
 
   return useQuery({
-    queryKey: ["get-balance", solPublicKey ? solPublicKey.toString() : '' + evmAddress],
-    refetchInterval: 10000,
+    queryKey: ["get-balance", { endpoint: connection.rpcEndpoint, solAddress, evmAddress }],
+    enabled: !!solAddress || !!evmAddress,
     queryFn: async (): Promise<BalanceData> => {
-      console.log("queryFn starting...", solPublicKey, evmAddress);
+      console.log("queryFn starting...", solAddress, evmAddress);
 
       const data = {
         solBalance: 0,
@@ -64,144 +58,176 @@ export const useGetBalance = ({ solPublicKey, evmAddress = '' }: { solPublicKey?
         ethUsdcBalance: 0,
       }
 
-      if (solPublicKey && isValidPublicKey(solPublicKey)) {
-        // 1. Get SOL balance
-        const solBalance = await connection.getBalance(solPublicKey);
-        if (solBalance) {
-          data.solBalance = Number(solBalance / 1e9);
-        }
-
-        // 2. Get SOL -> USDC balance
-        const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDC, cluster.name); // Solana USDC Mint address
-        let solUsdcAddress;
+      if (solAddress) {
         try {
-          solUsdcAddress = await getAssociatedTokenAddress(
-            new PublicKey(SOL_USDC_MINT_ADDRESS),
-            solPublicKey
-          );
-        } catch (e) {
-          console.log("getAssociatedTokenAddress error:", e);
-        }
-        if (solUsdcAddress) {
-          try {
-            const solUsdcAccount = await getAccount(connection, solUsdcAddress);
-            if (solUsdcAccount) {
-              data.solUsdcBalance = Number(solUsdcAccount.amount / BigInt(1e6));
+          const solPublicKey = new PublicKey(solAddress);
+          if (isValidPublicKey(solPublicKey)) {
+            // 1. Get SOL balance
+            try {
+              const solBalance = await connection.getBalance(solPublicKey);
+              if (solBalance) {
+                data.solBalance = Number(solBalance / LAMPORTS_PER_SOL);
+              }
+            } catch (e) {
+              console.log("get SOL Balance error:", e);
             }
-          } catch (e) {
-            console.log("getAccount error:", e);
-          }
-        }
 
-        // 3. Get SOL -> USDT balance
-        // const SOL_USDT_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDT, cluster.name); // Solana USDT Mint 地址
-        // const solUsdtAddress = await getAssociatedTokenAddress(
-        //   new PublicKey(SOL_USDT_MINT_ADDRESS),
-        //   solPublicKey
-        // );
-        // const solUsdtAccount = await getAccount(connection, solUsdtAddress);
-        // if (solUsdtAccount) {
-        //   data.solUsdtBalance = Number(solUsdtAccount.amount / BigInt(1e6));
-        // }
-      } else {
-        console.log("Invalid Solana public key");
+            // 2. Get SOL -> USDC balance
+            const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDC, cluster.name); // Solana USDC Mint address
+            let solUsdcAddress;
+            try {
+              solUsdcAddress = await getAssociatedTokenAddress(
+                new PublicKey(SOL_USDC_MINT_ADDRESS),
+                solPublicKey
+              );
+            } catch (e) {
+              console.log("getAssociatedTokenAddress error:", e);
+            }
+            if (solUsdcAddress) {
+              try {
+                const solUsdcAccount = await getAccount(connection, solUsdcAddress);
+                if (solUsdcAccount) {
+                  data.solUsdcBalance = Number(solUsdcAccount.amount / BigInt(1e6));
+                }
+              } catch (e) {
+                console.log("get SOL USDC Account error:", e);
+              }
+            }
+
+            // 3. Get SOL -> USDT balance
+            // const SOL_USDT_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDT, cluster.name);
+            // const solUsdtAddress = await getAssociatedTokenAddress(
+            //   new PublicKey(SOL_USDT_MINT_ADDRESS),
+            //   solPublicKey
+            // );
+            // const solUsdtAccount = await getAccount(connection, solUsdtAddress);
+            // if (solUsdtAccount) {
+            //   data.solUsdtBalance = Number(solUsdtAccount.amount / BigInt(1e6));
+            // }   
+          }
+        } catch (e) {
+          console.log("new PublicKey error:", e);
+        }
       }
 
-      if (isValidEvmAddress(evmAddress)) {
+      if (isValidEvmAddress(evmAddress) && publicClient) {
+        // 1. Get ETH balance
         try {
-          // 4. Get ETH balance
-          const ethBalance = await client.getBalance({ address: evmAddress as `0x${string}` });
+          const ethBalance = await publicClient.getBalance({ address: evmAddress as `0x${string}` });
           if (ethBalance) {
             data.ethBalance = Number(formatEther(ethBalance));
           }
+        } catch (e) {
+          console.log("get ETH Balance error:", e);
+        }
 
-          // 5. Get ETH -> USDC balance
+        // 2. Get ETH -> USDC balance
+        try {
           const USDC_CONTRACT = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
-          const ethUsdcDecimals = await client.readContract({
-            address: USDC_CONTRACT,
-            abi: erc20Abi,
-            functionName: 'decimals',
-            args: [],
-          })
-          const ethUsdcBalance = await client.readContract({
+          const ethUsdcDecimals = 6;
+          // const ethUsdcDecimals = await client.readContract({
+          //   address: USDC_CONTRACT,
+          //   abi: erc20Abi,
+          //   functionName: 'decimals',
+          //   args: [],
+          // })
+          // console.log('ethUsdcDecimals:', ethUsdcDecimals)
+          const ethUsdcBalance = await publicClient.readContract({
             address: USDC_CONTRACT,
             abi: erc20Abi,
             functionName: 'balanceOf',
             args: [evmAddress as `0x${string}`],
           });
           if (ethUsdcBalance) {
-            data.ethUsdcBalance = Number(formatUnits(ethUsdcBalance, ethUsdcDecimals || 6));
+            data.ethUsdcBalance = Number(formatUnits(ethUsdcBalance, ethUsdcDecimals));
           }
+        } catch (e) {
+          console.log("get ETH USDC Balance error:", e);
+        }
 
-          // 6. Get ETH -> USDT balance
+        // 3. Get ETH -> USDT balance
+        try {
           const USDT_CONTRACT = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0"
-          const ethUsdtDecimals = await client.readContract({
-            address: USDC_CONTRACT,
-            abi: erc20Abi,
-            functionName: 'decimals',
-            args: [],
-          })
-          const ethUsdtBalance = await client.readContract({
+          const ethUsdtDecimals = 6;
+          // const ethUsdtDecimals = await client.readContract({
+          //   address: USDT_CONTRACT,
+          //   abi: erc20Abi,
+          //   functionName: 'decimals',
+          //   args: [],
+          // })
+          // console.log('ethUsdtDecimals:', ethUsdtDecimals)
+          const ethUsdtBalance = await publicClient.readContract({
             address: USDT_CONTRACT,
             abi: erc20Abi,
             functionName: 'balanceOf',
             args: [evmAddress as `0x${string}`],
           });
           if (ethUsdtBalance) {
-            data.ethUsdtBalance = Number(formatUnits(ethUsdtBalance, ethUsdtDecimals || 6));
+            data.ethUsdtBalance = Number(formatUnits(ethUsdtBalance, ethUsdtDecimals));
           }
-        } catch (err) {
-          console.log("Get Eth balance error:", err);
+        } catch (e) {
+          console.log("get ETH USDT Balance error:", e);
         }
       }
 
       return data;
-    }
+    },
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: false,
   })
 }
 
-export const useAccountBalance = ({ solPublicKey, evmAddress }: { solPublicKey?: PublicKey, evmAddress?: string }) => {
-  const { data, isLoading, refetch, error } = useGetBalance({ solPublicKey, evmAddress });
-
+export const useAccountBalance = ({ solAddress, evmAddress }: { solAddress?: string, evmAddress?: string }) => {
+  const { isLoading, refetch, error, data } = useGetBalance({ solAddress, evmAddress });
+  const { connection } = useConnection();
   const [accountBalance, setAccountBalance] = useAtom(accountBalanceDataAtom);
 
   useEffect(() => {
     if (data) {
-      setAccountBalance((currentBalance) => {
-        return { ...currentBalance, ...data }
-      });
+      console.log("fetch account balance:", data);
+      setAccountBalance(data);
     }
   }, [data, setAccountBalance]);
 
-  // useMemo(() => {
-  //   if (solPublicKey) {
-  //     const _refetch = async () => {
-  //       await refetch();
-  //     }
-  //     _refetch();
+  useEffect(() => {
+    if (!refetch || isLoading) {
+      return;
+    }
 
-  //     const ACCOUNT_TO_WATCH = solPublicKey;
-  //     let subscriptionId: number;
-  //     const subscribeToAccount = async () => {
-  //       subscriptionId = connection.onAccountChange(
-  //         ACCOUNT_TO_WATCH,
-  //         () => {
-  //           refetch();
-  //         },
-  //         { commitment: "confirmed" }
-  //       );
-  //       console.log("Subscription ID:", subscriptionId);
-  //     };
+    const _refetch = async () => {
+      await refetch();
+    }
+    _refetch();
 
-  //     subscribeToAccount();
+    // Subscribe to solana account changes
+    let solSubscriptionId: number;
+    if (solAddress) {
+      const ACCOUNT_TO_WATCH = new PublicKey(solAddress);      
+      const subscribeToAccount = async () => {
+        solSubscriptionId = connection.onAccountChange(
+          ACCOUNT_TO_WATCH,
+          () => {
+            refetch();
+          },
+          { commitment: "confirmed" }
+        );
+        console.log("Subscription ID:", solSubscriptionId);
+      };
 
-  //     return () => {
-  //       connection.removeAccountChangeListener(subscriptionId).then(() => {
-  //         console.log("Unsubscribed from account changes");
-  //       });
-  //     };
-  //   }
-  // }, [solPublicKey]);
+      subscribeToAccount();
+    }
+
+    return () => {
+      if (solSubscriptionId) {
+        connection.removeAccountChangeListener(solSubscriptionId).then(() => {
+          console.log("Unsubscribed from account changes");
+        });
+      }
+    }
+
+  }, [solAddress, evmAddress, refetch, isLoading, connection]);
+
 
   const accountBalanceData = useMemo(() => ({
     accountBalance,
@@ -290,6 +316,7 @@ export const useTransferSolToken = ({ solPublicKey }: { solPublicKey?: PublicKey
       try {
         if (solPublicKey) {
           console.log("transfer sol token", solPublicKey.toString(), input.tokenMintPublicKey.toString(), input.destination.toString(), input.amount);
+
 
           const senderTokenAccount = await getAssociatedTokenAddress(input.tokenMintPublicKey, solPublicKey);
           console.log("senderTokenAccount", senderTokenAccount.toString());

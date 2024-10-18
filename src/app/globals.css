@@ -125,6 +125,10 @@
   }
 }
 
+.container {
+  @apply px-4;
+}
+
 .wallet-adapter-button-trigger {
   background: rgb(155, 116, 223) !important;
   border-radius: 8px !important;

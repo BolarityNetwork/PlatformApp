@@ -1,5 +1,6 @@
+import { createPublicClient } from 'viem';
 import { createConfig, http } from 'wagmi'
-import { mainnet, sepolia } from 'wagmi/chains'
+import { sepolia } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors';
 
 export const projectId = process.env['NEXT_PUBLIC_PROJECT_ID']
@@ -9,10 +10,14 @@ if (!projectId) {
 }
 
 export const wagmiConfig = createConfig({
-  chains: [mainnet, sepolia],
+  chains: [sepolia],
   connectors: [injected()],
   transports: {
-    [mainnet.id]: http(),
     [sepolia.id]: http(),
   },
+})
+
+export const publicClient = createPublicClient({ 
+  chain: sepolia,
+  transport: http()
 })
