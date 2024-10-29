@@ -10,7 +10,6 @@ import {
   TableCell,
   Table,
 } from "@/components/ui/table";
-import { FaEthereum } from "react-icons/fa";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FaEthereum } from "react-icons/fa";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
@@ -50,6 +50,7 @@ import {
   getProvider,
   handleTransactionSuccess,
   hexStringToUint8Array,
+  wait,
   writeBigUint64LE,
 } from "@/lib/utils";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -513,7 +514,9 @@ export const DepositModal = ({
       [contractAddressPadded]
     );
     let ABI = ["function approve(address to, uint256 tokenId)"];
+    // 解析 ABI
     const iface = parseAbi(ABI);
+    // 使用 encodeFunctionData 编码函数调用数据
     const paras = encodeFunctionData({
       abi: iface,
       functionName: "approve",
@@ -551,6 +554,7 @@ export const DepositModal = ({
     );
     const amountInWei = parseUnits(amount.toString(), 6); // Convert USDT to wei
 
+    // 判断是否需要授权
     const isApproved = await checkAllowance(
       usdtContractAddress,
       wallet.evmAddress as `0x${string}`,
@@ -559,6 +563,8 @@ export const DepositModal = ({
     );
     if (!isApproved) {
       await onApprove(solanaPublicKey);
+      // 等待2s
+      await wait(2000);
     }
 
     const proxyAddress = wallet.evmAddress;
@@ -573,7 +579,9 @@ export const DepositModal = ({
     const ABI = [
       "function supply(address asset,uint256 amount,address onBehalfOf,uint16 referralCode)",
     ];
+    // 解析 ABI
     const iface = parseAbi(ABI);
+    // 使用 encodeFunctionData 编码函数调用数据
     const paras = encodeFunctionData({
       abi: iface,
       functionName: "supply",
@@ -594,17 +602,21 @@ export const DepositModal = ({
           signature,
           getExplorerLink("tx", signature, "devnet")
         );
+        // 关闭状态
         setIsSendDisabled(false);
         setIsLoading(false);
+        // 关闭对话框
         onChange(false, true);
       }, 3000);
     } else {
       toast.error("Transaction Failed.");
 
+      // 关闭状态
       setIsSendDisabled(false);
       setIsLoading(false);
+      // 关闭对话框
       onChange(false, true);
-    }    
+    }
   };
 
   return (
@@ -800,7 +812,9 @@ export const WithdrawModal = ({
       [contractAddressPadded]
     );
     const ABI = ["function withdraw(address asset,uint256 amount, address to)"];
+    // 解析 ABI
     const iface = parseAbi(ABI);
+    // 使用 encodeFunctionData 编码函数调用数据
     const paras = encodeFunctionData({
       abi: iface,
       functionName: "withdraw",
@@ -821,17 +835,21 @@ export const WithdrawModal = ({
           signature,
           getExplorerLink("tx", signature, "devnet")
         );
+        // 关闭状态
         setIsSendDisabled(false);
         setIsLoading(false);
+        // 关闭对话框
         onChange(false, true);
       }, 3000);
     } else {
       toast.error("Transaction Failed.");
 
+      // 关闭状态
       setIsSendDisabled(false);
       setIsLoading(false);
+      // 关闭对话框
       onChange(false, true);
-    }    
+    }
   };
 
   return (
@@ -997,6 +1015,7 @@ const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
       // );
 
       try {
+        // 计算USDT balance
         if (scaledATokenBalance > 0 && liquidityIndex) {
           const tenToThe27 = BigInt(10 ** 27);
           const _balance =
@@ -1005,7 +1024,7 @@ const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
           _reservesData.usdt.balance = Number(balance);
         }
 
-        // APY
+        // 计算APY
         if (liquidityRate) {
           const RAY = 10n ** 27n; // 10 to the power 27 as bigint
           const SECONDS_PER_YEAR = 31_536_000;
@@ -1091,8 +1110,16 @@ export const StakeTable = () => {
       depositedUsdt: reservesData?.usdt.balance || 0,
       apyUsdt: reservesData?.usdt.apy || "-",
       dailyUsdt: reservesData?.usdt.daily || "-",
-    })
-  }, [accountBalance.solBalance, accountBalance.ethBalance, reservesData?.usdt.balance, reservesData?.usdt.apy, reservesData?.usdt.daily, accountBalance.solUsdtBalance, accountBalance.ethUsdtBalance]);
+    });
+  }, [
+    accountBalance.solBalance,
+    accountBalance.ethBalance,
+    reservesData?.usdt.balance,
+    reservesData?.usdt.apy,
+    reservesData?.usdt.daily,
+    accountBalance.solUsdtBalance,
+    accountBalance.ethUsdtBalance,
+  ]);
 
   return (
     <>
@@ -1112,6 +1139,7 @@ export const StakeTable = () => {
           <TableRow>
             <TableHead className="p-3"></TableHead>
             <TableHead className="p-3">Network</TableHead>
+            <TableHead className="p-3">Application</TableHead>
             <TableHead className="p-3">Wallet Balance</TableHead>
             <TableHead className="p-3">Balance</TableHead>
             <TableHead className="p-3">APY</TableHead>
@@ -1123,14 +1151,7 @@ export const StakeTable = () => {
           <TableRow>
             <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
               <div className="flex gap-2 items-center">
-                <div className="hidden xl:block p-2 rounded-full bg-secondary">
-                  <Image
-                    src="/tether.png"
-                    alt="tether"
-                    width={24}
-                    height={24}
-                  />
-                </div>
+                <Image src="/tether.png" alt="USDT" width={24} height={24} />
                 <h4 className="xl:text-lg uppercase">USDT</h4>
               </div>
             </TableCell>
@@ -1138,11 +1159,16 @@ export const StakeTable = () => {
               <FaEthereum className="h-5 w-5" />
             </TableCell>
             <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <h5 className="xl:text-lg">{balance.evmUsdt?.toFixed(2) || 0.00}</h5>
+              <Image src="/aave.png" alt="AAVE" width={24} height={24} />
             </TableCell>
             <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
               <h5 className="xl:text-lg">
-                {balance.depositedUsdt?.toFixed(2) || 0.00}
+                {balance.evmUsdt?.toFixed(2) || 0.0}
+              </h5>
+            </TableCell>
+            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
+              <h5 className="xl:text-lg">
+                {balance.depositedUsdt?.toFixed(2) || 0.0}
               </h5>
             </TableCell>
             <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">

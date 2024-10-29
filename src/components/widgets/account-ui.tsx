@@ -148,7 +148,6 @@ const encodeRawData = (
   return Buffer.from(serialize(RawDataSchema, RawData));
 };
 
-// 5. 提取公共的 Wormhole 发送消息函数
 const sendWormholeMessage = async (
   program: anchor.Program,
   connection: Connection,
@@ -479,6 +478,7 @@ export const ActiveSolanaAccountBtn = () => {
   );
 };
 
+
 export const SendSolModal = ({
   open = false,
   onOpenChange,
@@ -491,19 +491,24 @@ export const SendSolModal = ({
   const [isOpen, setIsOpen] = useState(open);
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
+  const [isSendDisabled, setIsSendDisabled] = useState(true);
   const { isConnected, wallet } = useBolarity();
   const [solPublicKey, setSolPublicKey] = useState<PublicKey | undefined>();
   const { mutateAsync: transferSol } = useTransferSol({ solPublicKey });
   const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
-  const isSendDisabled = useMemo(() => {
-    return !(
-      destination.length >= CONSTANTS.MIN_DESTINATION_LENGTH &&
+  useEffect(() => {
+    if (
+      destination.length >= 32 &&
       parseFloat(amount) > 0 &&
       isConnected &&
       solPublicKey
-    );
+    ) {
+      setIsSendDisabled(false);
+    } else {
+      setIsSendDisabled(true);
+    }
   }, [destination, amount, isConnected, solPublicKey]);
 
   useMemo(() => {
@@ -585,27 +590,99 @@ export const SendSolModal = ({
 
       const program = new anchor.Program(IDL!, provider);
 
+      const NETWORK = "TESTNET";
+      const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
+      const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
+      const HELLO_WORLD_PID = program.programId;
+      // console.log("CORE_BRIDGE_PID:", CORE_BRIDGE_PID.toString());
+      // console.log("HELLO_WORLD_PID:", HELLO_WORLD_PID.toString());
+
+      const realConfig = deriveAddress(
+        [Buffer.from("config")],
+        HELLO_WORLD_PID
+      );
+      // console.log("realConfig:", realConfig.toString());
+
+      const message2 = await getProgramSequenceTracker(
+        connection,
+        program.programId,
+        CORE_BRIDGE_PID
+      )
+        .then((tracker) =>
+          deriveAddress(
+            [
+              Buffer.from("sent"),
+              (() => {
+                // const buf = Buffer.alloc(8);
+                // buf.writeBigUInt64LE(tracker.sequence + BigInt(1));
+                // return buf;
+                return writeBigUint64LE(tracker.sequence + BigInt(1));
+              })(),
+            ],
+            HELLO_WORLD_PID
+          )
+        )
+        .catch((err) => {
+          toast.error("Failed to get program sequence tracker");
+          console.log("err:", err);
+        });
+
+      if (!message2) {
+        return;
+      }
+
+      const wormholeAccounts2 = getPostMessageCpiAccounts(
+        program.programId,
+        CORE_BRIDGE_PID,
+        solPublicKey,
+        message2
+      );
+      console.log("wormholeAccounts2:", wormholeAccounts2);
+
+      const message = hexStringToUint8Array(txPayload);
       try {
-        // 使用提取的函数
-        const tx = await sendWormholeMessage(program, connection, solPublicKey, Buffer.from(txPayload));
-        const signature = await sendTransaction(tx, connection);
+        const params = {
+          config: realConfig,
+          wormholeProgram: CORE_BRIDGE_PID,
+          ...wormholeAccounts2,
+        };
+        const ix1 = program.methods.sendMessage(Buffer.from(message));
+        const ix2 = ix1.accountsStrict(params);
+        const ix3 = await ix2.instruction();
+        const tx3 = new Transaction().add(ix3);
+        tx3.feePayer = solPublicKey;
+        tx3.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+        const signature = await sendTransaction(tx3, connection);
         const latestBlockhash = await connection.getLatestBlockhash();
 
-        await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
+        // Send transaction and await for signature
+        await connection.confirmTransaction(
+          { signature, ...latestBlockhash },
+          "confirmed"
+        );
 
-        showTransactionSuccessToast(signature, getExplorerLink("tx", signature, "devnet"));
+        onChange(false);
+        handleTransactionSuccess(
+          signature,
+          getExplorerLink("tx", signature, "devnet")
+        );
       } catch (error: any) {
-        showErrorToast(error.message);
+        onChange(false);
+        toast.error(`Transaction failed: ${error.message}`);
       }
     } else {
       transferSol({
         destination: new PublicKey(destination),
         amount: parseFloat(amount),
-      }).then(() => {
-        console.log("success");
-        setDestination("");
-        setAmount("");
-      });
+      })
+        .then(() => {
+          setDestination("");
+          setAmount("");
+        })
+        .finally(() => {
+          onChange(false);
+        });
     }
   };
 
@@ -669,17 +746,13 @@ export const SendSolModal = ({
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <div>
-                  <DialogClose asChild>
-                    <Button
-                      type="submit"
-                      onClick={handleSend}
-                      disabled={isSendDisabled}
-                    >
-                      Send
-                    </Button>
-                  </DialogClose>
-                </div>
+                <Button
+                  type="submit"
+                  onClick={handleSend}
+                  disabled={isSendDisabled}
+                >
+                  Send
+                </Button>
               </TooltipTrigger>
               {isSendDisabled && (
                 <TooltipContent>
@@ -708,6 +781,7 @@ export const SendSolanaTokenModal = ({
   const [isOpen, setIsOpen] = useState(open);
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
+  const [isSendDisabled, setIsSendDisabled] = useState(true);
   const { isConnected, wallet } = useBolarity();
   const [solPublicKey, setSolPublicKey] = useState<PublicKey | undefined>();
   const { mutateAsync: transferSolToken } = useTransferSolToken({
@@ -717,13 +791,17 @@ export const SendSolanaTokenModal = ({
   const { connection } = useConnection();
   const { cluster } = useCluster();
 
-  const isSendDisabled = useMemo(() => {
-    return !(
-      destination.length >= CONSTANTS.MIN_DESTINATION_LENGTH &&
+  useEffect(() => {
+    if (
+      destination.length >= 32 &&
       parseFloat(amount) > 0 &&
       isConnected &&
       solPublicKey
-    );
+    ) {
+      setIsSendDisabled(false);
+    } else {
+      setIsSendDisabled(true);
+    }
   }, [destination, amount, isConnected, solPublicKey]);
 
   useMemo(() => {
@@ -752,7 +830,16 @@ export const SendSolanaTokenModal = ({
         [toHex(Buffer.from(solPublicKey.toBytes()))]
       );
       // 2. USDT contract address, ensure it's 32 bytes
-      const tokenContractAddress = getTokenContractAddress(tokenSymbol);
+      let tokenContractAddress;
+      switch (tokenSymbol) {
+        case CurrencyEnum.USDC:
+          tokenContractAddress = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
+          break;
+        case CurrencyEnum.USDT:
+        default:
+          tokenContractAddress = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0";
+          break;
+      }
       const contractAddressPadded = pad(toHex(toBytes(tokenContractAddress)), {
         size: 32,
         dir: "left",
@@ -808,17 +895,86 @@ export const SendSolanaTokenModal = ({
 
       const program = new anchor.Program(IDL!, provider);
 
+      const NETWORK = "TESTNET";
+      const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
+      const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
+      const HELLO_WORLD_PID = program.programId;
+      console.log("CORE_BRIDGE_PID:", CORE_BRIDGE_PID.toString());
+      console.log("HELLO_WORLD_PID:", HELLO_WORLD_PID.toString());
+
+      const realConfig = deriveAddress(
+        [Buffer.from("config")],
+        HELLO_WORLD_PID
+      );
+      console.log("realConfig:", realConfig.toString());
+
+      const message2 = await getProgramSequenceTracker(
+        connection,
+        program.programId,
+        CORE_BRIDGE_PID
+      )
+        .then((tracker) =>
+          deriveAddress(
+            [
+              Buffer.from("sent"),
+              (() => {
+                // const buf = Buffer.alloc(8);
+                // buf.writeBigUInt64LE(tracker.sequence + BigInt(1));
+                // return buf;
+                return writeBigUint64LE(tracker.sequence + BigInt(1));
+              })(),
+            ],
+            HELLO_WORLD_PID
+          )
+        )
+        .catch((err) => {
+          toast.error("Failed to get program sequence tracker");
+          console.log("err:", err);
+        });
+
+      if (!message2) {
+        return;
+      }
+
+      const wormholeAccounts2 = getPostMessageCpiAccounts(
+        program.programId,
+        CORE_BRIDGE_PID,
+        solPublicKey,
+        message2
+      );
+      console.log("wormholeAccounts2:", wormholeAccounts2);
+
+      const message = hexStringToUint8Array(txPayload);
       try {
-        // 使用提取的函
-        const tx = await sendWormholeMessage(program, connection, solPublicKey, Buffer.from(txPayload));
-        const signature = await sendTransaction(tx, connection);
+        const params = {
+          config: realConfig,
+          wormholeProgram: CORE_BRIDGE_PID,
+          ...wormholeAccounts2,
+        };
+        const ix1 = program.methods.sendMessage(Buffer.from(message));
+        const ix2 = ix1.accountsStrict(params);
+        const ix3 = await ix2.instruction();
+        const tx3 = new Transaction().add(ix3);
+        tx3.feePayer = solPublicKey;
+        tx3.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+        const signature = await sendTransaction(tx3, connection);
         const latestBlockhash = await connection.getLatestBlockhash();
 
-        await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
+        // Send transaction and await for signature
+        await connection.confirmTransaction(
+          { signature, ...latestBlockhash },
+          "confirmed"
+        );
 
-        showTransactionSuccessToast(signature, getExplorerLink("tx", signature, "devnet"));
+        onChange(false);
+        handleTransactionSuccess(
+          signature,
+          getExplorerLink("tx", signature, "devnet")
+        );
       } catch (error: any) {
-        showErrorToast(error.message);
+        onChange(false);
+        toast.error(`Transaction failed! ${error.message}`);
       }
     } else {
       const tokenMintAddress = getSolTokenMintAddress(
@@ -829,11 +985,14 @@ export const SendSolanaTokenModal = ({
         tokenMintPublicKey: new PublicKey(tokenMintAddress),
         destination: new PublicKey(destination),
         amount: parseFloat(amount),
-      }).then(() => {
-        console.log("success");
-        setDestination("");
-        setAmount("");
-      });
+      })
+        .then(() => {
+          setDestination("");
+          setAmount("");
+        })
+        .finally(() => {
+          onChange(false);
+        });
     }
   };
 
@@ -909,17 +1068,13 @@ export const SendSolanaTokenModal = ({
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <div>
-                  <DialogClose asChild>
-                    <Button
-                      type="submit"
-                      onClick={handleSend}
-                      disabled={isSendDisabled}
-                    >
-                      Send
-                    </Button>
-                  </DialogClose>
-                </div>
+                <Button
+                  type="submit"
+                  onClick={handleSend}
+                  disabled={isSendDisabled}
+                >
+                  Send
+                </Button>
               </TooltipTrigger>
               {isSendDisabled && (
                 <TooltipContent>
@@ -933,6 +1088,7 @@ export const SendSolanaTokenModal = ({
     </Dialog>
   );
 };
+
 
 export const ReceiveModal = ({
   address,
@@ -1034,13 +1190,18 @@ export const SendEthModal = ({
   const [isOpen, setIsOpen] = useState(open);
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
+  const [isSendDisabled, setIsSendDisabled] = useState(true);
   const { isConnected, wallet } = useBolarity();
   const { sendTransaction } = useSendTransaction();
   const { data: hash, isPending, writeContract } = useWriteContract();
 
-  const isSendDisabled = useMemo(() => {
-    return !isConnected || !(destination.length >= CONSTANTS.MIN_DESTINATION_LENGTH && parseFloat(amount) > 0);
-  }, [isConnected, destination, amount]);
+  useEffect(() => {
+    if (destination.length >= 32 && parseFloat(amount) > 0) {
+      setIsSendDisabled(false);
+    } else {
+      setIsSendDisabled(true);
+    }
+  }, [destination, amount]);
 
   const handleSend = async () => {
     console.log(`Send ${amount} to ${destination}`);
@@ -1050,10 +1211,9 @@ export const SendEthModal = ({
       return;
     }
 
-    const amountInWei = parseEther(amount); // Convert ETH to wei
-
     // Determine if the destination address is SOL or ETH
     if (destination.startsWith("0x")) {
+      const amountInWei = parseEther(amount); // Convert ETH to wei
       // Transfer to ETH address
       sendTransaction(
         {
@@ -1062,14 +1222,20 @@ export const SendEthModal = ({
         },
         {
           onSuccess: (hash) => {
-            showTransactionSuccessToast(hash, `https://sepolia.etherscan.io/tx/${hash}`);
+            onChange(false);
+            handleTransactionSuccess(
+              hash,
+              `https://sepolia.etherscan.io/tx/${hash}`
+            );
           },
           onError: (error) => {
+            onChange(false);
             toast.error(`Transaction failed: ${error.message}`);
           },
         }
       );
     } else {
+      const amountInWei = parseUnits(amount, 9); // Convert ETH to wei
       // Transfer to Solana address
       const { address: solAddress } = wallet;
       const destinationPublicKey = new PublicKey(destination);
@@ -1129,9 +1295,6 @@ export const SendEthModal = ({
         [
           Buffer.from("pda"),
           (() => {
-            // const buf = Buffer.alloc(2);
-            // buf.writeUInt16LE(realForeignEmitterChain);
-            // return buf;
             return writeUInt16LE(realForeignEmitterChain);
           })(),
           ethAddress,
@@ -1170,9 +1333,14 @@ export const SendEthModal = ({
         },
         {
           onSuccess: (hash) => {
-            showTransactionSuccessToast(hash, `https://sepolia.etherscan.io/tx/${hash}`);
+            onChange(false);
+            handleTransactionSuccess(
+              hash,
+              `https://sepolia.etherscan.io/tx/${hash}`
+            );
           },
           onError: (error) => {
+            onChange(false);
             toast.error(`Transaction failed: ${error.message}`);
           },
         }
@@ -1196,16 +1364,11 @@ export const SendEthModal = ({
         id: hash,
       });
     }
-    if (isConfirmed) {
-      toast.success("Transaction Successful", {
-        description: ellipsify(hash),
-        action: {
-          label: "Explorer Link",
-          onClick: () =>
-            window.open(`https://sepolia.etherscan.io/tx/${hash}`, "_blank"),
-        },
-        duration: 10000,
-      });
+    if (isConfirmed && hash) {
+      handleTransactionSuccess(
+        hash as string,
+        `https://sepolia.etherscan.io/tx/${hash}`
+      );
     }
   }, [hash, isConfirmed, isConfirming]);
 
@@ -1264,17 +1427,13 @@ export const SendEthModal = ({
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <div>
-                  <DialogClose asChild>
-                    <Button
-                      type="submit"
-                      onClick={handleSend}
-                      disabled={isSendDisabled}
-                    >
-                      Send
-                    </Button>
-                  </DialogClose>
-                </div>
+                <Button
+                  type="submit"
+                  onClick={handleSend}
+                  disabled={isSendDisabled}
+                >
+                  Send
+                </Button>
               </TooltipTrigger>
               {isSendDisabled && (
                 <TooltipContent>
@@ -1303,11 +1462,16 @@ export const SendEthTokenModal = ({
   const [isOpen, setIsOpen] = useState(open);
   const [destination, setDestination] = useState("");
   const [amount, setAmount] = useState("");
+  const [isSendDisabled, setIsSendDisabled] = useState(true);
   const { isConnected, wallet } = useBolarity();
   const { writeContract } = useWriteContract();
 
-  const isSendDisabled = useMemo(() => {
-    return !(destination.length >= CONSTANTS.MIN_DESTINATION_LENGTH && parseFloat(amount) > 0);
+  useEffect(() => {
+    if (destination.length >= 32 && parseFloat(amount) > 0) {
+      setIsSendDisabled(false);
+    } else {
+      setIsSendDisabled(true);
+    }
   }, [destination, amount]);
 
   const handleSend = async () => {
@@ -1320,7 +1484,10 @@ export const SendEthTokenModal = ({
 
     // Determine if the destination address is SOL or ETH
     if (destination.startsWith("0x")) {
-      const tokenContractAddress = getTokenContractAddress(tokenSymbol);
+      const TOKEN_ADDRESS =
+        tokenSymbol === CurrencyEnum.USDC
+          ? "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238"
+          : "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0";
       const USDT_ABI = [
         {
           constant: false,
@@ -1337,16 +1504,24 @@ export const SendEthTokenModal = ({
       writeContract(
         {
           abi: USDT_ABI,
-          address: tokenContractAddress as `0x${string}`,
+          address: TOKEN_ADDRESS,
           functionName: "transfer",
           args: [destination, parseUnits(amount.toString(), 6)],
         },
         {
           onSuccess: (hash) => {
-            showTransactionSuccessToast(hash, `https://sepolia.etherscan.io/tx/${hash}`);
+            onChange(false);
+            handleTransactionSuccess(
+              hash,
+              `https://sepolia.etherscan.io/tx/${hash}`
+            );
           },
           onError: (error) => {
+            onChange(false);
             toast.error(`Transaction failed: ${error.message}`);
+          },
+          onSettled: (hash) => {
+            toast.loading("Transaction submitted");
           },
         }
       );
@@ -1446,9 +1621,14 @@ export const SendEthTokenModal = ({
         },
         {
           onSuccess: (hash) => {
-            showTransactionSuccessToast(hash, `https://sepolia.etherscan.io/tx/${hash}`);
+            onChange(false);
+            handleTransactionSuccess(
+              hash,
+              `https://sepolia.etherscan.io/tx/${hash}`
+            );
           },
           onError: (error) => {
+            onChange(false);
             toast.error(`Transaction failed: ${error.message}`);
           },
         }
@@ -1528,17 +1708,13 @@ export const SendEthTokenModal = ({
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <div>
-                  <DialogClose asChild>
-                    <Button
-                      type="submit"
-                      onClick={handleSend}
-                      disabled={isSendDisabled}
-                    >
-                      Send
-                    </Button>
-                  </DialogClose>
-                </div>
+                <Button
+                  type="submit"
+                  onClick={handleSend}
+                  disabled={isSendDisabled}
+                >
+                  Send
+                </Button>
               </TooltipTrigger>
               {isSendDisabled && (
                 <TooltipContent>
