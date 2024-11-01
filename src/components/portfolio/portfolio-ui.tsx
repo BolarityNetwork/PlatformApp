@@ -17,10 +17,16 @@ import {
   ActiveSolanaAccountBtn,
   ReceiveModal,
   SendEthModal,
-  SendEthTokenModal,
-  SendSolanaTokenModal,
+  SendModal,
   SendSolModal,
 } from "@/components/widgets/account-ui";
+import {
+  DialogHeader,
+  DialogContent,
+  DialogTitle,
+  Dialog,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +36,6 @@ import {
 import { ellipsify } from "@/lib/utils";
 import { CopyIcon, DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { RefreshCcwIcon } from "lucide-react";
-import { PublicKey } from "@solana/web3.js";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiSolana } from "react-icons/si";
@@ -54,11 +59,6 @@ export const AccountInfo = () => {
 
   useEffect(() => {
     if (isConnected) {
-      // if (wallet.chain === SupportChain.Solana) {
-      //   setAddress(wallet.address);
-      // } else if (wallet.chain === SupportChain.Ethereum) {
-      //   setAddress(wallet.evmAddress);
-      // }
       setAddress(wallet.address);
       setEvmAddress(wallet.evmAddress);
     } else {
@@ -207,8 +207,8 @@ type Asset = {
   symbol: string;
   price: string;
   change24h: number;
-  value: string;
-  amount: string;
+  value: number;
+  amount: number;
   network: string;
   networkIcon?: React.ReactNode;
 };
@@ -251,10 +251,10 @@ const AssetRow = ({
         </div>
       </TableCell>
       <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-        {asset.value}
+        $ {asset.value.toFixed(4)}
       </TableCell>
       <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-        {asset.amount}
+        {asset.amount.toFixed(4)}
       </TableCell>
       <TableCell className="hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]">
         <div className="flex gap-2 items-center">
@@ -288,25 +288,287 @@ const AssetRow = ({
   );
 };
 
+const AssetsModal = ({
+  open = false,
+  onOpenChange,
+  assets,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  assets: Asset[];
+}) => {
+  const [isOpen, setIsOpen] = useState(open);
+  const [totalValue, setTotalValue] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+
+  useEffect(() => {
+    setIsOpen(open);
+  }, [open]);
+
+  useEffect(() => {
+    if (assets.length > 0) {
+      let _totalValue = 0;
+      let _totalAmount = 0;
+      assets.forEach((asset) => {
+        _totalValue += asset.value;
+        _totalAmount += asset.amount;
+      });
+      setTotalValue(_totalValue);
+      setTotalAmount(_totalAmount);
+    } else {
+      setTotalValue(0);
+      setTotalAmount(0);
+    }
+  }, [assets]);
+
+  const onChange = (open: boolean) => {
+    setIsOpen(open);
+    if (onOpenChange) onOpenChange(open);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Total</DialogTitle>
+          <DialogDescription />
+        </DialogHeader>
+        <div className="flex flex-col py-2 gap-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-1 items-center gap-x-4">
+              <div className="pr-4">
+                <Image
+                  src={assets[0].icon}
+                  alt={assets[0].symbol}
+                  width={48}
+                  height={48}
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl font-semibold">
+                  {totalValue.toFixed(2)}
+                </span>
+                <span className="text-sm text-gray-500">
+                  ≈ ${totalAmount.toFixed(2)}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              {assets.map((asset) => (
+                <div
+                  key={`asset-icon-${asset.network}-${asset.symbol}`}
+                  className="rounded-full p-2 bg-secondary ml-[-10px]"
+                >
+                  {asset.networkIcon ? asset.networkIcon : asset.network}
+                </div>
+              ))}
+            </div>
+          </div>
+          <Separator className="my-4" />
+          <div className="flex flex-col gap-y-4">
+            {assets.map((asset) => (
+              <div
+                key={`asset-${asset.network}-${asset.symbol}`}
+                className="flex items-center justify-between gap-x-2"
+              >
+                <div className="relative pr-6">
+                  <div className="p-2 rounded-full bg-secondary">
+                    <Image
+                      src={asset.icon}
+                      alt={asset.symbol}
+                      width={36}
+                      height={36}
+                    />
+                  </div>
+                  <div className="absolute bottom-[-5px] right-[10px] p-[4px] overflow-hidden rounded-full bg-secondary">
+                    {asset.networkIcon
+                      ? asset.networkIcon
+                      : asset.network.slice(0, 1)}
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col">
+                  <span className="text-xl font-semibold uppercase">
+                    {asset.symbol}
+                  </span>
+                  <span className="text-sm text-gray-500">{asset.network}</span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-lg font-semibold">
+                    {asset.value.toFixed(2)}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    ≈ ${asset.amount.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const MuitlAssetRow = ({
+  assets,
+  onInternationalize,
+  onSend,
+  onReceive,
+}: {
+  assets: Asset[];
+  onInternationalize: (asset: Asset) => void;
+  onSend: (asset: Asset) => void;
+  onReceive: (asset: Asset) => void;
+}) => {
+  const [asset, setAsset] = useState<Asset | null>(null);
+  const [networks, setNetworks] = useState<string[]>([]);
+  const [networkIcons, setNetworkIcons] = useState<React.ReactNode[]>([]);
+  const [openAssetsModal, setOpenAssetsModal] = useState(false);
+
+  useEffect(() => {
+    if (assets.length > 0) {
+      const _asset: Asset = {
+        icon: assets[0].icon,
+        symbol: assets[0].symbol,
+        price: assets[0].price,
+        change24h: assets[0].change24h,
+        value: 0,
+        amount: 0,
+        network: assets[0].network,
+        networkIcon: assets[0].networkIcon,
+      };
+      const _networks: string[] = [];
+      const _networkIcons: React.ReactNode[] = [];
+      assets.forEach((asset) => {
+        _asset.value += asset.value;
+        _asset.amount += asset.amount;
+        _networks.push(asset.network);
+        _networkIcons.push(asset.networkIcon);
+      });
+
+      setAsset(_asset);
+      setNetworks(_networks);
+      setNetworkIcons(_networkIcons);
+    } else {
+      setAsset(null);
+      setNetworks([]);
+      setNetworkIcons([]);
+    }
+  }, [assets]);
+
+  return (
+    <>
+      {asset && (
+        <TableRow
+        >
+          <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
+            <div className="flex gap-2 items-center">
+              <div className="hidden xl:block p-2 rounded-full bg-secondary">
+                <Image
+                  src={asset.icon}
+                  alt={asset.symbol}
+                  width={24}
+                  height={24}
+                />
+              </div>
+              <h4 className="xl:text-lg font-bold uppercase">{asset.symbol}</h4>
+            </div>
+          </TableCell>
+          <TableCell className="p-3">
+            <div className="flex gap-2 items-center">
+              <span className="xl:text-lg font-bold">{asset.price}</span>{" "}
+              {asset.change24h > 0 ? (
+                <Badge className="text-xs rounded-md">
+                  + {asset.change24h.toFixed(2)} %
+                </Badge>
+              ) : asset.change24h == 0 ? (
+                ""
+              ) : (
+                <Badge variant="destructive" className="text-xs rounded-md">
+                  {asset.change24h.toFixed(2)} %
+                </Badge>
+              )}
+            </div>
+          </TableCell>
+          <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
+            $ {asset.value.toFixed(2)}
+          </TableCell>
+          <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
+            {asset.amount.toFixed(2)}
+          </TableCell>
+          <TableCell className="cursor-pointer hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]" onClick={() => setOpenAssetsModal(true)}>
+            <div className="flex gap-2 items-center">
+              {networkIcons.map((networkIcon, index) => (
+                <div key={`network-icon-${index}`}>{networkIcon}</div>
+              ))}
+            </div>
+          </TableCell>
+          <TableCell className="p-3 text-right lg:w-[100px] xl:w-[160px]">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <DotsHorizontalIcon className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => onInternationalize(asset)}
+                >
+                  Internationalize
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => onSend(asset)}
+                >
+                  Send
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => onReceive(asset)}
+                >
+                  Receive
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
+        </TableRow>
+      )}
+      {assets.length > 0 && openAssetsModal && (
+        <AssetsModal
+          assets={assets}
+          open={openAssetsModal}
+          onOpenChange={setOpenAssetsModal}
+        />
+      )}
+    </>
+  );
+};
+
 export const AssetsTable = () => {
   const { isConnected, wallet } = useBolarity();
-  const [solPublicKey, setSolPublicKey] = useState<PublicKey>();
+  const [solAddress, setSolAddress] = useState<string>();
   const [evmAddress, setEvmAddress] = useState<string>();
   const [assetsList, setAssetsList] = useState<Asset[]>([]);
+  const [usdtList, setUsdtList] = useState<Asset[]>([]);
+  const [usdcList, setUsdcList] = useState<Asset[]>([]);
   const [openReceiveModal, setOpenReceiveModal] = useState({
     open: false,
     address: "",
   });
-  const [openSendSolModal, setOpenSendSolModal] = useState(false);
-  const [openSendSolTokenModal, setOpenSendSolTokenModal] = useState({
+  const [openSendModal, setOpenSendModal] = useState({
     open: false,
-    tokenSymbol: "",
   });
-  const [openSendEthModal, setOpenSendEthModal] = useState(false);
-  const [openSendEthTokenModal, setOpenSendEthTokenModal] = useState({
-    open: false,
-    tokenSymbol: "",
-  });
+  // const [openSendSolModal, setOpenSendSolModal] = useState(false);
+  // const [openSendSolTokenModal, setOpenSendSolTokenModal] = useState({
+  //   open: false,
+  //   tokenSymbol: "",
+  // });
+  // const [openSendEthModal, setOpenSendEthModal] = useState(false);
+  // const [openSendEthTokenModal, setOpenSendEthTokenModal] = useState({
+  //   open: false,
+  //   tokenSymbol: "",
+  // });
   const [openInternationalizeSolModal, setOpenInternationalizeSolModal] =
     useState(false);
 
@@ -315,7 +577,7 @@ export const AssetsTable = () => {
     refetch: fetchBalance,
     isLoading,
   } = useAccountBalance({
-    solPublicKey,
+    solAddress,
     evmAddress,
   });
   const { feedsData } = useFeedsData();
@@ -324,25 +586,23 @@ export const AssetsTable = () => {
     if (isConnected) {
       const { address, evmAddress } = wallet;
       if (address) {
-        setSolPublicKey(new PublicKey(address));
+        setSolAddress(address);
       }
       if (evmAddress) {
         setEvmAddress(evmAddress);
       }
     } else {
-      setSolPublicKey(undefined);
+      setSolAddress(undefined);
       setEvmAddress(undefined);
       setAssetsList([]);
+      setUsdtList([]);
     }
   }, [isConnected, wallet]);
 
   useMemo(() => {
-    if (!isConnected) {
-      setAssetsList([]);
+    if (!wallet || !feedsData || !accountBalance) {
       return;
     }
-
-    console.log("Assets Table", accountBalance);
 
     const {
       solBalance,
@@ -354,6 +614,8 @@ export const AssetsTable = () => {
     } = accountBalance;
 
     const _assetsList: Asset[] = [];
+    const _usdtList: Asset[] = [];
+    const _usdcList: Asset[] = [];
 
     let needSolBalance = false;
     if (wallet.chain === SupportChain.Solana) {
@@ -368,34 +630,34 @@ export const AssetsTable = () => {
         symbol: CurrencyEnum.SOLANA,
         price: feedsData.sol.formattedPrice,
         change24h: feedsData.sol.change24h,
-        value: "$ " + (solBalance * feedsData.sol.price).toFixed(4),
-        amount: solBalance.toFixed(4),
+        value: solBalance * feedsData.sol.price,
+        amount: solBalance,
         network: "Solana",
         networkIcon: <SiSolana className="h-5 w-5" />,
       });
     }
 
     if (solUsdtBalance > 0) {
-      _assetsList.push({
+      _usdtList.push({
         icon: "/tether.png",
         symbol: CurrencyEnum.USDT,
         price: feedsData.usdt.formattedPrice,
         change24h: 0,
-        value: "$ " + (solUsdtBalance * feedsData.usdt.price).toFixed(2),
-        amount: solUsdtBalance.toFixed(4),
+        value: solUsdtBalance * feedsData.usdt.price,
+        amount: solUsdtBalance,
         network: "Solana",
         networkIcon: <SiSolana className="h-5 w-5" />,
       });
     }
 
     if (solUsdcBalance > 0) {
-      _assetsList.push({
+      _usdcList.push({
         icon: "/usdc.png",
         symbol: CurrencyEnum.USDC,
         price: feedsData.usdc.formattedPrice,
         change24h: 0,
-        value: "$ " + (solUsdcBalance * feedsData.usdc.price).toFixed(2),
-        amount: solUsdcBalance.toFixed(2),
+        value: solUsdcBalance * feedsData.usdc.price,
+        amount: solUsdcBalance,
         network: "Solana",
         networkIcon: <SiSolana className="h-5 w-5" />,
       });
@@ -415,60 +677,53 @@ export const AssetsTable = () => {
         symbol: CurrencyEnum.ETHEREUM,
         price: feedsData.eth.formattedPrice,
         change24h: feedsData.eth.change24h,
-        value: "$ " + (ethBalance * feedsData.eth.price).toFixed(4),
-        amount: ethBalance.toFixed(2),
+        value: ethBalance * feedsData.eth.price,
+        amount: ethBalance,
         network: "Ethereum",
         networkIcon: <FaEthereum className="h-5 w-5" />,
       });
     }
 
     if (ethUsdtBalance > 0) {
-      _assetsList.push({
+      _usdtList.push({
         icon: "/tether.png",
         symbol: CurrencyEnum.USDT,
         price: feedsData.usdt.formattedPrice,
         change24h: 0,
-        value: "$ " + (ethUsdtBalance * feedsData.usdt.price).toFixed(2),
-        amount: ethUsdtBalance.toFixed(2),
+        value: ethUsdtBalance * feedsData.usdt.price,
+        amount: ethUsdtBalance,
         network: "Ethereum",
         networkIcon: <FaEthereum className="h-5 w-5" />,
       });
     }
 
     if (ethUsdcBalance > 0) {
-      _assetsList.push({
+      _usdcList.push({
         icon: "/usdc.png",
         symbol: CurrencyEnum.USDC,
         price: feedsData.usdc.formattedPrice,
         change24h: 0,
-        value: "$ " + (ethUsdcBalance * feedsData.usdc.price).toFixed(2),
-        amount: ethUsdcBalance.toFixed(2),
+        value: ethUsdcBalance * feedsData.usdc.price,
+        amount: ethUsdcBalance,
         network: "Ethereum",
         networkIcon: <FaEthereum className="h-5 w-5" />,
       });
     }
 
-    // console.log("assetsList: ", _assetsList);
-
     setAssetsList(_assetsList);
-  }, [isConnected, wallet, accountBalance, feedsData]);
+    setUsdtList(_usdtList);
+    setUsdcList(_usdcList);
+  }, [wallet, accountBalance, feedsData]);
 
   const onReceiveModal = useMemo(() => {
     return (asset: Asset) => {
-      console.log(
-        "onReceiveModal",
-        asset,
-        solPublicKey?.toString(),
-        evmAddress
-      );
-      const address =
-        asset.network === "Solana" ? solPublicKey?.toString() : evmAddress;
+      const address = asset.network === "Solana" ? solAddress : evmAddress;
       setOpenReceiveModal({
         open: true,
         address: address || "",
       });
     };
-  }, [solPublicKey, evmAddress]);
+  }, [solAddress, evmAddress]);
 
   const handleCloseReceiveModal = (open: boolean) => {
     if (!open) {
@@ -479,66 +734,79 @@ export const AssetsTable = () => {
     }
   };
 
-  const onSendModal = useMemo(() => {
-    return (asset: Asset) => {
-      if (wallet) {
-        switch (wallet.chain) {
-          case SupportChain.Ethereum:
-            if (
-              asset.symbol === CurrencyEnum.ETHEREUM ||
-              asset.symbol === CurrencyEnum.SOLANA
-            ) {
-              setOpenSendEthModal(true);
-            } else {
-              setOpenSendEthTokenModal({
-                open: true,
-                tokenSymbol: asset.symbol,
-              });
-            }
-            break;
-          case SupportChain.Solana:
-            if (
-              asset.symbol === CurrencyEnum.SOLANA ||
-              asset.symbol === CurrencyEnum.ETHEREUM
-            ) {
-              setOpenSendSolModal(true);
-            } else {
-              setOpenSendSolTokenModal({
-                open: true,
-                tokenSymbol: asset.symbol,
-              });
-            }
-            break;
-        }
-      }
-    };
-  }, [wallet]);
-  const handleCloseSendSolModal = (open: boolean) => {
-    if (!open) {
-      setOpenSendSolModal(false);
-    }
+  const onSendModal = () => {
+    setOpenSendModal({
+      open: true,
+    });
   };
-  const handleCloseSendSolTokenModal = (open: boolean) => {
+  const handleCloseSendModal = (open: boolean) => {
     if (!open) {
-      setOpenSendSolTokenModal({
+      setOpenSendModal({
         open: false,
-        tokenSymbol: "",
       });
     }
   };
-  const handleCloseSendEthModal = (open: boolean) => {
-    if (!open) {
-      setOpenSendEthModal(false);
-    }
-  };
-  const handleCloseSendEthTokenModal = (open: boolean) => {
-    if (!open) {
-      setOpenSendEthTokenModal({
-        open: false,
-        tokenSymbol: "",
-      });
-    }
-  };
+
+  // const onSendModal = useMemo(() => {
+  //   return (asset: Asset) => {
+  //     if (wallet) {
+  //       switch (wallet.chain) {
+  //         case SupportChain.Ethereum:
+  //           if (
+  //             asset.symbol === CurrencyEnum.ETHEREUM ||
+  //             asset.symbol === CurrencyEnum.SOLANA
+  //           ) {
+  //             setOpenSendEthModal(true);
+  //           } else {
+  //             setOpenSendEthTokenModal({
+  //               open: true,
+  //               tokenSymbol: asset.symbol,
+  //             });
+  //           }
+  //           break;
+  //         case SupportChain.Solana:
+  //           if (
+  //             asset.symbol === CurrencyEnum.SOLANA ||
+  //             asset.symbol === CurrencyEnum.ETHEREUM
+  //           ) {
+  //             setOpenSendSolModal(true);
+  //           } else {
+  //             setOpenSendSolTokenModal({
+  //               open: true,
+  //               tokenSymbol: asset.symbol,
+  //             });
+  //           }
+  //           break;
+  //       }
+  //     }
+  //   };
+  // }, [wallet]);
+  // const handleCloseSendSolModal = (open: boolean) => {
+  //   if (!open) {
+  //     setOpenSendSolModal(false);
+  //   }
+  // };
+  // const handleCloseSendSolTokenModal = (open: boolean) => {
+  //   if (!open) {
+  //     setOpenSendSolTokenModal({
+  //       open: false,
+  //       tokenSymbol: "",
+  //     });
+  //   }
+  // };
+  // const handleCloseSendEthModal = (open: boolean) => {
+  //   if (!open) {
+  //     setOpenSendEthModal(false);
+  //   }
+  // };
+  // const handleCloseSendEthTokenModal = (open: boolean) => {
+  //   if (!open) {
+  //     setOpenSendEthTokenModal({
+  //       open: false,
+  //       tokenSymbol: "",
+  //     });
+  //   }
+  // };
 
   const onInternationalizeModal = useMemo(() => {
     return (asset: Asset) => {
@@ -577,7 +845,7 @@ export const AssetsTable = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {isLoading || assetsList.length === 0 ? (
+          {isLoading ? (
             <>
               <TableRow>
                 <TableCell className="px-0 py-2" colSpan={6}>
@@ -594,14 +862,34 @@ export const AssetsTable = () => {
                   onInternationalize={() => {
                     onInternationalizeModal(asset);
                   }}
-                  onSend={() => {
-                    onSendModal(asset);
-                  }}
+                  onSend={onSendModal}
                   onReceive={() => {
                     onReceiveModal(asset);
                   }}
                 />
               ))}
+
+              <MuitlAssetRow
+                assets={usdtList}
+                onInternationalize={() => {
+                  onInternationalizeModal(usdtList[0]);
+                }}
+                onSend={onSendModal}
+                onReceive={() => {
+                  onReceiveModal(usdtList[0]);
+                }}
+              />
+
+              <MuitlAssetRow
+                assets={usdcList}
+                onInternationalize={() => {
+                  onInternationalizeModal(usdtList[0]);
+                }}
+                onSend={onSendModal}
+                onReceive={() => {
+                  onReceiveModal(usdtList[0]);
+                }}
+              />
             </>
           )}
         </TableBody>
@@ -614,7 +902,14 @@ export const AssetsTable = () => {
           withButton={false}
         />
       )}
-      {openSendSolModal && (
+      {openSendModal.open && (
+        <SendModal
+          open={true}
+          onOpenChange={handleCloseSendModal}
+          withButton={false}
+        />
+      )}
+      {/* {openSendSolModal && (
         <SendSolModal
           open={openSendSolModal}
           onOpenChange={handleCloseSendSolModal}
@@ -643,7 +938,7 @@ export const AssetsTable = () => {
           withButton={false}
           onOpenChange={handleCloseSendEthTokenModal}
         />
-      )}
+      )} */}
     </>
   );
 };
