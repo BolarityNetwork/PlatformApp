@@ -346,10 +346,13 @@ const AssetsModal = ({
               </div>
               <div className="flex flex-col">
                 <span className="text-2xl font-semibold">
-                  {totalValue.toFixed(2)}
+                  {assets[0].symbol == CurrencyEnum.USDC ||
+                  assets[0].symbol == CurrencyEnum.USDT
+                    ? totalAmount.toFixed(2)
+                    : totalAmount.toFixed(4)}
                 </span>
                 <span className="text-sm text-gray-500">
-                  ≈ ${totalAmount.toFixed(2)}
+                  ≈ ${totalValue.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -376,8 +379,8 @@ const AssetsModal = ({
                     <Image
                       src={asset.icon}
                       alt={asset.symbol}
-                      width={36}
-                      height={36}
+                      width={28}
+                      height={28}
                     />
                   </div>
                   <div className="absolute bottom-[-5px] right-[10px] p-[4px] overflow-hidden rounded-full bg-secondary">
@@ -394,10 +397,10 @@ const AssetsModal = ({
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-lg font-semibold">
-                    {asset.value.toFixed(2)}
+                    {asset.amount.toFixed(2)}
                   </span>
                   <span className="text-sm text-gray-500">
-                    ≈ ${asset.amount.toFixed(2)}
+                    ≈ ${asset.value.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -459,8 +462,7 @@ const MuitlAssetRow = ({
   return (
     <>
       {asset && (
-        <TableRow
-        >
+        <TableRow>
           <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
             <div className="flex gap-2 items-center">
               <div className="hidden xl:block p-2 rounded-full bg-secondary">
@@ -496,7 +498,10 @@ const MuitlAssetRow = ({
           <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
             {asset.amount.toFixed(2)}
           </TableCell>
-          <TableCell className="cursor-pointer hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]" onClick={() => setOpenAssetsModal(true)}>
+          <TableCell
+            className="cursor-pointer hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]"
+            onClick={() => setOpenAssetsModal(true)}
+          >
             <div className="flex gap-2 items-center">
               {networkIcons.map((networkIcon, index) => (
                 <div key={`network-icon-${index}`}>{networkIcon}</div>
@@ -549,7 +554,8 @@ export const AssetsTable = () => {
   const { isConnected, wallet } = useBolarity();
   const [solAddress, setSolAddress] = useState<string>();
   const [evmAddress, setEvmAddress] = useState<string>();
-  const [assetsList, setAssetsList] = useState<Asset[]>([]);
+  const [solList, setSolList] = useState<Asset[]>([]);
+  const [ethList, setEthList] = useState<Asset[]>([]);
   const [usdtList, setUsdtList] = useState<Asset[]>([]);
   const [usdcList, setUsdcList] = useState<Asset[]>([]);
   const [openReceiveModal, setOpenReceiveModal] = useState({
@@ -558,17 +564,9 @@ export const AssetsTable = () => {
   });
   const [openSendModal, setOpenSendModal] = useState({
     open: false,
+    currency: CurrencyEnum.SOLANA,
   });
-  // const [openSendSolModal, setOpenSendSolModal] = useState(false);
-  // const [openSendSolTokenModal, setOpenSendSolTokenModal] = useState({
-  //   open: false,
-  //   tokenSymbol: "",
-  // });
-  // const [openSendEthModal, setOpenSendEthModal] = useState(false);
-  // const [openSendEthTokenModal, setOpenSendEthTokenModal] = useState({
-  //   open: false,
-  //   tokenSymbol: "",
-  // });
+
   const [openInternationalizeSolModal, setOpenInternationalizeSolModal] =
     useState(false);
 
@@ -582,7 +580,7 @@ export const AssetsTable = () => {
   });
   const { feedsData } = useFeedsData();
 
-  useEffect(() => {
+  useMemo(() => {
     if (isConnected) {
       const { address, evmAddress } = wallet;
       if (address) {
@@ -594,8 +592,10 @@ export const AssetsTable = () => {
     } else {
       setSolAddress(undefined);
       setEvmAddress(undefined);
-      setAssetsList([]);
+      setSolList([]);
+      setEthList([]);
       setUsdtList([]);
+      setUsdcList([]);
     }
   }, [isConnected, wallet]);
 
@@ -606,14 +606,17 @@ export const AssetsTable = () => {
 
     const {
       solBalance,
+      solEthBalance,
       solUsdtBalance,
       solUsdcBalance,
       ethBalance,
+      ethSolBalance,
       ethUsdtBalance,
       ethUsdcBalance,
     } = accountBalance;
 
-    const _assetsList: Asset[] = [];
+    const _solList: Asset[] = [];
+    const _ethList: Asset[] = [];
     const _usdtList: Asset[] = [];
     const _usdcList: Asset[] = [];
 
@@ -625,13 +628,26 @@ export const AssetsTable = () => {
     }
 
     if (needSolBalance) {
-      _assetsList.push({
+      _solList.push({
         icon: "/solana.svg",
         symbol: CurrencyEnum.SOLANA,
         price: feedsData.sol.formattedPrice,
         change24h: feedsData.sol.change24h,
         value: solBalance * feedsData.sol.price,
         amount: solBalance,
+        network: "Solana",
+        networkIcon: <SiSolana className="h-5 w-5" />,
+      });
+    }
+
+    if (solEthBalance > 0) {
+      _ethList.push({
+        icon: "/ethereum.svg",
+        symbol: CurrencyEnum.ETHEREUM,
+        price: feedsData.eth.formattedPrice,
+        change24h: feedsData.eth.change24h,
+        value: solEthBalance * feedsData.eth.price,
+        amount: solEthBalance,
         network: "Solana",
         networkIcon: <SiSolana className="h-5 w-5" />,
       });
@@ -672,13 +688,26 @@ export const AssetsTable = () => {
     }
 
     if (needEthBalance) {
-      _assetsList.push({
+      _ethList.push({
         icon: "/ethereum.svg",
         symbol: CurrencyEnum.ETHEREUM,
         price: feedsData.eth.formattedPrice,
         change24h: feedsData.eth.change24h,
         value: ethBalance * feedsData.eth.price,
         amount: ethBalance,
+        network: "Ethereum",
+        networkIcon: <FaEthereum className="h-5 w-5" />,
+      });
+    }
+
+    if (ethSolBalance > 0) {
+      _solList.push({
+        icon: "/solana.svg",
+        symbol: CurrencyEnum.SOLANA,
+        price: feedsData.sol.formattedPrice,
+        change24h: feedsData.sol.change24h,
+        value: ethSolBalance * feedsData.sol.price,
+        amount: ethSolBalance,
         network: "Ethereum",
         networkIcon: <FaEthereum className="h-5 w-5" />,
       });
@@ -710,7 +739,8 @@ export const AssetsTable = () => {
       });
     }
 
-    setAssetsList(_assetsList);
+    setSolList(_solList);
+    setEthList(_ethList);
     setUsdtList(_usdtList);
     setUsdcList(_usdcList);
   }, [wallet, accountBalance, feedsData]);
@@ -734,79 +764,20 @@ export const AssetsTable = () => {
     }
   };
 
-  const onSendModal = () => {
+  const onSendModal = (currency: CurrencyEnum = CurrencyEnum.SOLANA) => {
     setOpenSendModal({
       open: true,
+      currency
     });
   };
   const handleCloseSendModal = (open: boolean) => {
     if (!open) {
       setOpenSendModal({
         open: false,
+        currency: CurrencyEnum.SOLANA
       });
     }
   };
-
-  // const onSendModal = useMemo(() => {
-  //   return (asset: Asset) => {
-  //     if (wallet) {
-  //       switch (wallet.chain) {
-  //         case SupportChain.Ethereum:
-  //           if (
-  //             asset.symbol === CurrencyEnum.ETHEREUM ||
-  //             asset.symbol === CurrencyEnum.SOLANA
-  //           ) {
-  //             setOpenSendEthModal(true);
-  //           } else {
-  //             setOpenSendEthTokenModal({
-  //               open: true,
-  //               tokenSymbol: asset.symbol,
-  //             });
-  //           }
-  //           break;
-  //         case SupportChain.Solana:
-  //           if (
-  //             asset.symbol === CurrencyEnum.SOLANA ||
-  //             asset.symbol === CurrencyEnum.ETHEREUM
-  //           ) {
-  //             setOpenSendSolModal(true);
-  //           } else {
-  //             setOpenSendSolTokenModal({
-  //               open: true,
-  //               tokenSymbol: asset.symbol,
-  //             });
-  //           }
-  //           break;
-  //       }
-  //     }
-  //   };
-  // }, [wallet]);
-  // const handleCloseSendSolModal = (open: boolean) => {
-  //   if (!open) {
-  //     setOpenSendSolModal(false);
-  //   }
-  // };
-  // const handleCloseSendSolTokenModal = (open: boolean) => {
-  //   if (!open) {
-  //     setOpenSendSolTokenModal({
-  //       open: false,
-  //       tokenSymbol: "",
-  //     });
-  //   }
-  // };
-  // const handleCloseSendEthModal = (open: boolean) => {
-  //   if (!open) {
-  //     setOpenSendEthModal(false);
-  //   }
-  // };
-  // const handleCloseSendEthTokenModal = (open: boolean) => {
-  //   if (!open) {
-  //     setOpenSendEthTokenModal({
-  //       open: false,
-  //       tokenSymbol: "",
-  //     });
-  //   }
-  // };
 
   const onInternationalizeModal = useMemo(() => {
     return (asset: Asset) => {
@@ -855,37 +826,46 @@ export const AssetsTable = () => {
             </>
           ) : (
             <>
-              {assetsList.map((asset) => (
-                <AssetRow
-                  key={`${asset.network}-${asset.symbol}`}
-                  asset={asset}
-                  onInternationalize={() => {
-                    onInternationalizeModal(asset);
-                  }}
-                  onSend={onSendModal}
-                  onReceive={() => {
-                    onReceiveModal(asset);
-                  }}
-                />
-              ))}
-
+              {/* SOL Balance */}
+              <MuitlAssetRow
+                assets={solList}
+                onInternationalize={() => {
+                  onInternationalizeModal(solList[0]);
+                }}
+                onSend={() => onSendModal(CurrencyEnum.SOLANA)}
+                onReceive={() => {
+                  onReceiveModal(solList[0]);
+                }}
+              />
+              {/* ETH Balance */}
+              <MuitlAssetRow
+                assets={ethList}
+                onInternationalize={() => {
+                  onInternationalizeModal(ethList[0]);
+                }}
+                onSend={() => onSendModal(CurrencyEnum.ETHEREUM)}
+                onReceive={() => {
+                  onReceiveModal(ethList[0]);
+                }}
+              />
+              {/* USDT Balance */}
               <MuitlAssetRow
                 assets={usdtList}
                 onInternationalize={() => {
                   onInternationalizeModal(usdtList[0]);
                 }}
-                onSend={onSendModal}
+                onSend={() => onSendModal(CurrencyEnum.USDT)}
                 onReceive={() => {
                   onReceiveModal(usdtList[0]);
                 }}
               />
-
+              {/* USDC Balance */}
               <MuitlAssetRow
                 assets={usdcList}
                 onInternationalize={() => {
                   onInternationalizeModal(usdtList[0]);
                 }}
-                onSend={onSendModal}
+                onSend={() => onSendModal(CurrencyEnum.USDC)}
                 onReceive={() => {
                   onReceiveModal(usdtList[0]);
                 }}
@@ -905,40 +885,11 @@ export const AssetsTable = () => {
       {openSendModal.open && (
         <SendModal
           open={true}
+          currency={openSendModal.currency}
           onOpenChange={handleCloseSendModal}
           withButton={false}
         />
       )}
-      {/* {openSendSolModal && (
-        <SendSolModal
-          open={openSendSolModal}
-          onOpenChange={handleCloseSendSolModal}
-          withButton={false}
-        />
-      )}
-      {openSendSolTokenModal.open && (
-        <SendSolanaTokenModal
-          tokenSymbol={openSendSolTokenModal.tokenSymbol}
-          open={true}
-          withButton={false}
-          onOpenChange={handleCloseSendSolTokenModal}
-        />
-      )}
-      {openSendEthModal && (
-        <SendEthModal
-          open={openSendEthModal}
-          onOpenChange={handleCloseSendEthModal}
-          withButton={false}
-        />
-      )}
-      {openSendEthTokenModal.open && (
-        <SendEthTokenModal
-          tokenSymbol={openSendEthTokenModal.tokenSymbol}
-          open={true}
-          withButton={false}
-          onOpenChange={handleCloseSendEthTokenModal}
-        />
-      )} */}
     </>
   );
 };
