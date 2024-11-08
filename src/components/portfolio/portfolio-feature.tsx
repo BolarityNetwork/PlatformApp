@@ -1,4 +1,5 @@
-import { AccountInfo, AssetsTable } from "./portfolio-ui";
+import { AccountInfo } from "../widgets/account-info";
+import { AssetsTable } from "./portfolio-ui";
 
 export default function PortfolioFeature() {
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { AccountInfo } from '../portfolio/portfolio-ui'
+import { AccountInfo } from '../widgets/account-info'
 import { StakeTable } from './vaults-ui'
 
 const VaultsFeature = () => {

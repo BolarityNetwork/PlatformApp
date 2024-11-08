@@ -1,18 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { createPublicClient, http, pad, encodeFunctionData, decodeFunctionResult, toHex } from 'viem';
-import { sepolia } from 'viem/chains';
+import { useState, useMemo } from 'react';
+import { pad, toHex } from 'viem';
 import { PublicKey, PublicKeyInitData } from '@solana/web3.js';
 import { hexStringToUint8Array, rightAlignBuffer } from '@/lib/utils';
 import { deriveAddress } from '@certusone/wormhole-sdk/lib/cjs/solana';
 import { ChainId } from '@certusone/wormhole-sdk';
 import { useConnection } from '@solana/wallet-adapter-react';
-
-// Initialize viem client
-const client = createPublicClient({
-  chain: sepolia,
-  transport: http(),
-});
-const UniProxy = require('../abis/UniProxy.json');
+import { publicClient } from '@/config/wagmi';
+import { BOLARITY_EVM_CONTRACT, BOLARITY_SOLANA_CONTRACT, UNI_PROXY } from '@/config';
 
 const deriveEthAddressKey = (
   programId: PublicKeyInitData,
@@ -33,66 +27,78 @@ const deriveEthAddressKey = (
   );
 }
 
+let sending = false;
+
 export const useProxyAddress = () => {
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
   const { connection } = useConnection();
 
-  const fetchProxyAddress = async (solAddress: string, sourceChain: number = 1): Promise<string | undefined> => {
-    // console.log("fetchProxyAddress: ", solAddress, sourceChain);
-    const { abi } = UniProxy;
-    try {
-      // Contract address and ABI
-      const contractAddress = '0x438aCC4fB994D97A052d225f0Ca3BF720a3552A9';
+  const fetchProxyEvmAddress = useMemo(() => {
+    return async (solAddress: string, sourceChain: number = 1): Promise<string | undefined> => {
+      if (!solAddress || sending) return;
 
-      // Convert Solana address to bytes and pad it
-      const userAddressSolana = new PublicKey(solAddress).toBytes();
-      const userAddressPadded = pad(userAddressSolana, { size: 32 });
-
-      // Prepare function data
-      // const data = encodeFunctionData({
-      //   UniProxy.abi,
-      //   functionName: 'proxys',
-      //   args: [sourceChain, userAddressPadded],
-      // });
-
-      // Read contract
-      const result = await client.readContract({
-        address: contractAddress,
-        abi,
-        functionName: 'proxys',
-        args: [sourceChain, toHex(userAddressPadded)],
-      }).catch((err) => {
-        console.error('fetchProxyAddress error:', err);
-      });
-      if (result && result != "0x0000000000000000000000000000000000000000") {
-        return result as string;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSolanaAddress = useMemo(() => {
-    return async (evmAddress: string): Promise<PublicKey | undefined> => {
-      const HELLO_WORLD_PID = new PublicKey("CLErExd7gNADvu5rDFmkFD1uAt7zksJ3TDfXsJqJ4QTs");
-      const realForeignEmitterChain = 10002;
-      const ethAddress = rightAlignBuffer(Buffer.from(hexStringToUint8Array(evmAddress)));
-      if (ethAddress) {
-        const addressKey = deriveEthAddressKey(HELLO_WORLD_PID, realForeignEmitterChain, new PublicKey(ethAddress));
-        try {
-          const accountInfo = await connection.getAccountInfo(addressKey);
-          if (accountInfo) {
-            return addressKey;
-          }
-        } catch (err) {
-          console.error("getAccountInfo: ", err);
+      sending = true;
+      try {
+        console.log("FetchEvmAddress starting...");
+        
+        // Convert Solana address to bytes and pad it
+        const userAddressSolana = new PublicKey(solAddress).toBytes();
+        const userAddressPadded = pad(userAddressSolana, { size: 32 });
+        
+        // Read contract
+        const { abi } = UNI_PROXY;
+        const result = await publicClient.readContract({
+          address: BOLARITY_EVM_CONTRACT,
+          abi,
+          functionName: 'proxys',
+          args: [sourceChain, toHex(userAddressPadded)],
+        }).catch((err) => {
+          console.error('fetchProxyAddress failed:', err);
+        });
+        if (result && result != "0x0000000000000000000000000000000000000000") {
+          console.log("FetchEvmAddress success.");
+          return result as string;
+        } else {
+          console.log("FetchEvmAddress failed: not activated.");
         }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        sending = false;
+      }
+    }
+  }, []);
+
+  const fetchProxySolanaAddress = useMemo(() => {
+    return async (evmAddress: string): Promise<string | undefined> => {
+      if (!evmAddress || sending) return;
+      
+      sending = true;
+      try {
+        console.log("FetchSolanaAddress starting...");
+
+        const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
+        const realForeignEmitterChain = 10002;
+        const ethAddress = rightAlignBuffer(Buffer.from(hexStringToUint8Array(evmAddress)));
+        const addressKey = deriveEthAddressKey(HELLO_WORLD_PID, realForeignEmitterChain, new PublicKey(ethAddress));
+        const accountInfo = await connection.getAccountInfo(addressKey);
+        if (accountInfo) {
+          console.log("FetchSolanaAddress success.");
+          return addressKey.toBase58();
+        } else {
+          console.log("FetchSolanaAddress failed: not activated.");
+        }
+      } catch (err) {
+        console.error("FetchSolanaAddress failed: ", err);
+      } finally {
+        sending = false;
       }
     }
   }, [connection]);
 
-  return { error, loading, fetchProxyAddress, fetchSolanaAddress };
+  return {
+    error,
+    fetchProxyEvmAddress,
+    fetchProxySolanaAddress
+  };
 };
