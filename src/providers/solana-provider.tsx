@@ -26,7 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { WalletConnectButton } from "@/components/widgets/connect-button";
-import { PhantomWalletName } from "@solana/wallet-adapter-phantom";
 
 export const SolanaConnectModal = ({
   open = false,
@@ -52,10 +51,6 @@ export const SolanaConnectModal = ({
     },
     [connect, onConnected, select]
   );
-
-  useEffect(() => {
-    select(PhantomWalletName);
-  }, [select])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
