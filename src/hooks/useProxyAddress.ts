@@ -1,17 +1,21 @@
-import { useState, useMemo } from 'react';
-import { pad, toHex } from 'viem';
-import { PublicKey, PublicKeyInitData } from '@solana/web3.js';
-import { hexStringToUint8Array, rightAlignBuffer } from '@/lib/utils';
-import { deriveAddress } from '@certusone/wormhole-sdk/lib/cjs/solana';
-import { ChainId } from '@certusone/wormhole-sdk';
-import { useConnection } from '@solana/wallet-adapter-react';
-import { publicClient } from '@/config/wagmi';
-import { BOLARITY_EVM_CONTRACT, BOLARITY_SOLANA_CONTRACT, UNI_PROXY } from '@/config';
+import { useState, useMemo } from "react";
+import { pad, toHex } from "viem";
+import { PublicKey, PublicKeyInitData } from "@solana/web3.js";
+import { hexStringToUint8Array, rightAlignBuffer } from "@/lib/utils";
+import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
+import { ChainId } from "@certusone/wormhole-sdk";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { publicClient } from "@/config/wagmi";
+import {
+  BOLARITY_EVM_CONTRACT,
+  BOLARITY_SOLANA_CONTRACT,
+  UNI_PROXY,
+} from "@/config";
 
 const deriveEthAddressKey = (
   programId: PublicKeyInitData,
   chain: ChainId,
-  address: PublicKey,
+  address: PublicKey
 ) => {
   return deriveAddress(
     [
@@ -25,80 +29,97 @@ const deriveEthAddressKey = (
     ],
     programId
   );
-}
+};
 
-let sending = false;
+let isSending = false;
 
 export const useProxyAddress = () => {
   const [error, setError] = useState<string | null>(null);
   const { connection } = useConnection();
 
-  const fetchProxyEvmAddress = useMemo(() => {
-    return async (solAddress: string, sourceChain: number = 1): Promise<string | undefined> => {
-      if (!solAddress || sending) return;
+  const handleError = (err: unknown, fallbackMessage = "An error occurred") => {
+    const errorMessage = err instanceof Error ? err.message : fallbackMessage;
+    console.error(errorMessage);
+    setError(errorMessage);
+  };
 
-      sending = true;
+  const fetchProxyEvmAddress = useMemo(() => {
+    return async (
+      solAddress: string,
+      sourceChain = 1
+    ): Promise<string | undefined> => {
+      if (!solAddress || isSending) return;
+
+      isSending = true;
       try {
-        console.log("FetchEvmAddress starting...");
-        
-        // Convert Solana address to bytes and pad it
+        console.log("Fetching EVM Address...");
+
+        // Prepare Solana address as padded bytes
         const userAddressSolana = new PublicKey(solAddress).toBytes();
         const userAddressPadded = pad(userAddressSolana, { size: 32 });
-        
-        // Read contract
+
+        // Call EVM contract
         const { abi } = UNI_PROXY;
         const result = await publicClient.readContract({
           address: BOLARITY_EVM_CONTRACT,
           abi,
-          functionName: 'proxys',
+          functionName: "proxys",
           args: [sourceChain, toHex(userAddressPadded)],
-        }).catch((err) => {
-          console.error('fetchProxyAddress failed:', err);
         });
-        if (result && result != "0x0000000000000000000000000000000000000000") {
-          console.log("FetchEvmAddress success.");
+
+        if (result && result !== "0x0000000000000000000000000000000000000000") {
+          console.log("EVM Address fetched successfully.");
           return result as string;
         } else {
-          console.log("FetchEvmAddress failed: not activated.");
+          console.log("EVM Address not activated.");
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        handleError(err, "Failed to fetch EVM Address.");
       } finally {
-        sending = false;
+        isSending = false;
       }
-    }
+    };
   }, []);
 
   const fetchProxySolanaAddress = useMemo(() => {
     return async (evmAddress: string): Promise<string | undefined> => {
-      if (!evmAddress || sending) return;
-      
-      sending = true;
-      try {
-        console.log("FetchSolanaAddress starting...");
+      if (!evmAddress || isSending) return;
 
-        const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
-        const realForeignEmitterChain = 10002;
-        const ethAddress = rightAlignBuffer(Buffer.from(hexStringToUint8Array(evmAddress)));
-        const addressKey = deriveEthAddressKey(HELLO_WORLD_PID, realForeignEmitterChain, new PublicKey(ethAddress));
+      isSending = true;
+      try {
+        console.log("Fetching Solana Address...");
+
+        // Prepare Solana PDA
+        const programId = new PublicKey(BOLARITY_SOLANA_CONTRACT);
+        const emitterChain = 10002; // Foreign emitter chain ID
+        const ethAddress = rightAlignBuffer(
+          Buffer.from(hexStringToUint8Array(evmAddress))
+        );
+        const addressKey = deriveEthAddressKey(
+          programId,
+          emitterChain,
+          new PublicKey(ethAddress)
+        );
+
+        // Check account info
         const accountInfo = await connection.getAccountInfo(addressKey);
         if (accountInfo) {
-          console.log("FetchSolanaAddress success.");
+          console.log("Solana Address fetched successfully.");
           return addressKey.toBase58();
         } else {
-          console.log("FetchSolanaAddress failed: not activated.");
+          console.log("Solana Address not activated.");
         }
       } catch (err) {
-        console.error("FetchSolanaAddress failed: ", err);
+        handleError(err, "Failed to fetch Solana Address.");
       } finally {
-        sending = false;
+        isSending = false;
       }
-    }
+    };
   }, [connection]);
 
   return {
     error,
     fetchProxyEvmAddress,
-    fetchProxySolanaAddress
+    fetchProxySolanaAddress,
   };
 };

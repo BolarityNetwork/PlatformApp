@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   TableHeader,
   TableRow,
@@ -31,8 +31,8 @@ import { Button } from "@/components/ui/button";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { Label } from "@radix-ui/react-label";
 import { LoaderCircle, RefreshCcwIcon } from "lucide-react";
-import { useBolarity } from "@/hooks/useBolarity";
-import { useAccountBalance } from "@/hooks/useAccount";
+
+
 import {
   encodeAbiParameters,
   encodeFunctionData,
@@ -66,290 +66,12 @@ import { toast } from "sonner";
 import { publicClient } from "@/config/wagmi";
 import { useQuery } from "@tanstack/react-query";
 
+import { useGetBalance } from '@/hooks/useAccount'
+import { aaveABI } from "@/abis/AAveABI";
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+
 const usdtContractAddress = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0";
 const aaveContractAddress = "0x6ae43d3271ff6888e7fc43fd7321a503ff738951";
-const aaveABI = [
-  {
-    inputs: [
-      {
-        internalType: "contract IPoolAddressesProvider",
-        name: "provider",
-        type: "address",
-      },
-      { internalType: "address", name: "user", type: "address" },
-    ],
-    name: "getUserReservesData",
-    outputs: [
-      {
-        components: [
-          { internalType: "address", name: "underlyingAsset", type: "address" },
-          {
-            internalType: "uint256",
-            name: "scaledATokenBalance",
-            type: "uint256",
-          },
-          {
-            internalType: "bool",
-            name: "usageAsCollateralEnabledOnUser",
-            type: "bool",
-          },
-          {
-            internalType: "uint256",
-            name: "stableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "scaledVariableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "principalStableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableBorrowLastUpdateTimestamp",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.UserReserveData[]",
-        name: "",
-        type: "tuple[]",
-      },
-      { internalType: "uint8", name: "", type: "uint8" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "contract IPoolAddressesProvider",
-        name: "provider",
-        type: "address",
-      },
-    ],
-    name: "getReservesData",
-    outputs: [
-      {
-        components: [
-          { internalType: "address", name: "underlyingAsset", type: "address" },
-          { internalType: "string", name: "name", type: "string" },
-          { internalType: "string", name: "symbol", type: "string" },
-          { internalType: "uint256", name: "decimals", type: "uint256" },
-          {
-            internalType: "uint256",
-            name: "baseLTVasCollateral",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "reserveLiquidationThreshold",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "reserveLiquidationBonus",
-            type: "uint256",
-          },
-          { internalType: "uint256", name: "reserveFactor", type: "uint256" },
-          {
-            internalType: "bool",
-            name: "usageAsCollateralEnabled",
-            type: "bool",
-          },
-          { internalType: "bool", name: "borrowingEnabled", type: "bool" },
-          {
-            internalType: "bool",
-            name: "stableBorrowRateEnabled",
-            type: "bool",
-          },
-          { internalType: "bool", name: "isActive", type: "bool" },
-          { internalType: "bool", name: "isFrozen", type: "bool" },
-          { internalType: "uint128", name: "liquidityIndex", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "variableBorrowIndex",
-            type: "uint128",
-          },
-          { internalType: "uint128", name: "liquidityRate", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "variableBorrowRate",
-            type: "uint128",
-          },
-          {
-            internalType: "uint128",
-            name: "stableBorrowRate",
-            type: "uint128",
-          },
-          {
-            internalType: "uint40",
-            name: "lastUpdateTimestamp",
-            type: "uint40",
-          },
-          { internalType: "address", name: "aTokenAddress", type: "address" },
-          {
-            internalType: "address",
-            name: "stableDebtTokenAddress",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "variableDebtTokenAddress",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "interestRateStrategyAddress",
-            type: "address",
-          },
-          {
-            internalType: "uint256",
-            name: "availableLiquidity",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "totalPrincipalStableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "averageStableRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableDebtLastUpdateTimestamp",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "totalScaledVariableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "priceInMarketReferenceCurrency",
-            type: "uint256",
-          },
-          { internalType: "address", name: "priceOracle", type: "address" },
-          {
-            internalType: "uint256",
-            name: "variableRateSlope1",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "variableRateSlope2",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableRateSlope1",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableRateSlope2",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "baseStableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "baseVariableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "optimalUsageRatio",
-            type: "uint256",
-          },
-          { internalType: "bool", name: "isPaused", type: "bool" },
-          { internalType: "bool", name: "isSiloedBorrowing", type: "bool" },
-          {
-            internalType: "uint128",
-            name: "accruedToTreasury",
-            type: "uint128",
-          },
-          { internalType: "uint128", name: "unbacked", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "isolationModeTotalDebt",
-            type: "uint128",
-          },
-          { internalType: "bool", name: "flashLoanEnabled", type: "bool" },
-          { internalType: "uint256", name: "debtCeiling", type: "uint256" },
-          {
-            internalType: "uint256",
-            name: "debtCeilingDecimals",
-            type: "uint256",
-          },
-          { internalType: "uint8", name: "eModeCategoryId", type: "uint8" },
-          { internalType: "uint256", name: "borrowCap", type: "uint256" },
-          { internalType: "uint256", name: "supplyCap", type: "uint256" },
-          { internalType: "uint16", name: "eModeLtv", type: "uint16" },
-          {
-            internalType: "uint16",
-            name: "eModeLiquidationThreshold",
-            type: "uint16",
-          },
-          {
-            internalType: "uint16",
-            name: "eModeLiquidationBonus",
-            type: "uint16",
-          },
-          {
-            internalType: "address",
-            name: "eModePriceSource",
-            type: "address",
-          },
-          { internalType: "string", name: "eModeLabel", type: "string" },
-          { internalType: "bool", name: "borrowableInIsolation", type: "bool" },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.AggregatedReserveData[]",
-        name: "",
-        type: "tuple[]",
-      },
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "marketReferenceCurrencyUnit",
-            type: "uint256",
-          },
-          {
-            internalType: "int256",
-            name: "marketReferenceCurrencyPriceInUsd",
-            type: "int256",
-          },
-          {
-            internalType: "int256",
-            name: "networkBaseTokenPriceInUsd",
-            type: "int256",
-          },
-          {
-            internalType: "uint8",
-            name: "networkBaseTokenPriceDecimals",
-            type: "uint8",
-          },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.BaseCurrencyInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-];
 
 async function checkAllowance(
   tokenAddress: `0x${string}`,
@@ -378,7 +100,6 @@ async function checkAllowance(
   if (allowance) {
     return amountInWei <= allowance;
   }
-
   return false;
 }
 
@@ -393,17 +114,13 @@ export const DepositModal = ({
   const [amount, setAmount] = useState("");
   const [isSendDisabled, setIsSendDisabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, wallet } = useBolarity();
+
+
+  const { evmAddress, solAddress } = useBolarityWalletProvider()
+
   const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
   const { connection } = useConnection();
 
-  useEffect(() => {
-    if (parseFloat(amount) > 0 && isConnected) {
-      setIsSendDisabled(false);
-    } else {
-      setIsSendDisabled(true);
-    }
-  }, [amount, isConnected]);
 
   const onChange = (open: boolean, status?: boolean) => {
     setIsOpen(open);
@@ -541,13 +258,12 @@ export const DepositModal = ({
   };
 
   const handleSubmit = async () => {
-    if (!isConnected || !wallet || !wallet.address || !wallet.evmAddress)
-      return;
+
     if (!amount) return;
 
     setIsLoading(true);
     setIsSendDisabled(true);
-    const solanaPublicKey = new PublicKey(wallet.address);
+    const solanaPublicKey = new PublicKey(solAddress);
     const userAddress = encodeAbiParameters(
       [{ type: "bytes32" }],
       [toHex(Buffer.from(solanaPublicKey.toBytes()))]
@@ -557,7 +273,7 @@ export const DepositModal = ({
     // 判断是否需要授权
     const isApproved = await checkAllowance(
       usdtContractAddress,
-      wallet.evmAddress as `0x${string}`,
+      evmAddress as `0x${string}`,
       aaveContractAddress,
       amountInWei
     );
@@ -567,7 +283,7 @@ export const DepositModal = ({
       await wait(2000);
     }
 
-    const proxyAddress = wallet.evmAddress;
+    const proxyAddress = evmAddress;
     const contractAddressPadded = pad(toHex(toBytes(aaveContractAddress)), {
       size: 32,
       dir: "left",
@@ -683,17 +399,12 @@ export const WithdrawModal = ({
   const [amount, setAmount] = useState("");
   const [isSendDisabled, setIsSendDisabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, wallet } = useBolarity();
+
   const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
   const { connection } = useConnection();
+  const { evmAddress, solAddress } = useBolarityWalletProvider()
 
-  useEffect(() => {
-    if (parseFloat(amount) > 0 && isConnected) {
-      setIsSendDisabled(false);
-    } else {
-      setIsSendDisabled(true);
-    }
-  }, [amount, isConnected]);
+
 
   const onChange = (open: boolean, status?: boolean) => {
     setIsOpen(open);
@@ -788,21 +499,20 @@ export const WithdrawModal = ({
   };
 
   const handleSubmit = async () => {
-    if (!isConnected || !wallet || !wallet.address || !wallet.evmAddress)
-      return;
+
     if (!amount) return;
 
     setIsLoading(true);
     setIsSendDisabled(true);
 
-    const solanaPublicKey = new PublicKey(wallet.address);
+    const solanaPublicKey = new PublicKey(solAddress);
     const userAddress = encodeAbiParameters(
       [{ type: "bytes32" }],
       [toHex(Buffer.from(solanaPublicKey.toBytes()))]
     );
     const amountInWei = parseUnits(amount.toString(), 6); // Convert USDT to wei
 
-    const proxyAddress = wallet.evmAddress;
+    const proxyAddress = evmAddress;
     const contractAddressPadded = pad(toHex(toBytes(aaveContractAddress)), {
       size: 32,
       dir: "left",
@@ -1006,14 +716,6 @@ const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
       } catch (e) {
         console.log("getReservesData error:", e);
       }
-
-      // console.log(
-      //   "fetchReserveData:",
-      //   scaledATokenBalance,
-      //   liquidityIndex,
-      //   liquidityRate
-      // );
-
       try {
         // 计算USDT balance
         if (scaledATokenBalance > 0 && liquidityIndex) {
@@ -1055,16 +757,17 @@ const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
 };
 
 export const StakeTable = () => {
-  const { wallet } = useBolarity();
+
   const [openDepositModal, setOpenDepositModal] = useState(false);
   const [openWithdrawModal, setOpenWithdrawModal] = useState(false);
-  const { accountBalance, refetch: refetchAccountBalance } = useAccountBalance({
-    solAddress: wallet.address,
-    evmAddress: wallet.evmAddress,
-  });
+
+  const { evmAddress } = useBolarityWalletProvider()
+
+  const { data: accountBalance, refetch: refetchAccountBalance } = useGetBalance()
+
   const { data: reservesData, refetch: refetchReserveData } = useGetReserveData(
     {
-      evmAddress: wallet.evmAddress,
+      evmAddress,
     }
   );
   const [balance, setBalance] = useState<IBalance>(DefaultBalance);
@@ -1105,20 +808,20 @@ export const StakeTable = () => {
 
   useEffect(() => {
     setBalance({
-      solanaUsdt: accountBalance.solUsdtBalance,
-      evmUsdt: accountBalance.ethUsdtBalance,
+      solanaUsdt: accountBalance?.solUsdtBalance,
+      evmUsdt: accountBalance?.ethUsdtBalance,
       depositedUsdt: reservesData?.usdt.balance || 0,
       apyUsdt: reservesData?.usdt.apy || "-",
       dailyUsdt: reservesData?.usdt.daily || "-",
     });
   }, [
-    accountBalance.solBalance,
-    accountBalance.ethBalance,
+    // accountBalance?.solBalance,
+    // accountBalance?.ethBalance,
     reservesData?.usdt.balance,
     reservesData?.usdt.apy,
     reservesData?.usdt.daily,
-    accountBalance.solUsdtBalance,
-    accountBalance.ethUsdtBalance,
+    accountBalance?.solUsdtBalance,
+    accountBalance?.ethUsdtBalance,
   ]);
 
   return (

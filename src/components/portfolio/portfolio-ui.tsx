@@ -1,5 +1,5 @@
 "use client";
-
+import React from "react";
 import Image from "next/image";
 
 import { Separator } from "@/components/ui/separator";
@@ -11,15 +11,9 @@ import {
   TableCell,
   Table,
 } from "@/components/ui/table";
-import {
-  AccountBalance,
-  ActiveEvmAccountButton,
-  ActiveSolanaAccountBtn,
-  ReceiveModal,
-  SendEthModal,
-  SendModal,
-  SendSolModal,
-} from "@/components/widgets/account-ui";
+import { QrCodeModal } from "@/components/widgets/account-ui/index";
+
+
 import {
   DialogHeader,
   DialogContent,
@@ -33,260 +27,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ellipsify } from "@/lib/utils";
-import { CopyIcon, DotsHorizontalIcon } from "@radix-ui/react-icons";
+
+import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { RefreshCcwIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { SiSolana } from "react-icons/si";
 import { FaEthereum } from "react-icons/fa";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { useAccountBalance } from "@/hooks/useAccount";
-import { Skeleton } from "../ui/skeleton";
-import { useBolarity } from "@/hooks/useBolarity";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useGetBalance } from "@/hooks/useAccount";
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { CurrencyEnum, SupportChain } from "@/config";
-import { useProxyAddress } from "@/hooks/useProxyAddress";
 import { useFeedsData } from "@/hooks/useFeedsData";
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 
-export const AccountInfo = () => {
-  const { isConnected, wallet, updateWalletAddress } = useBolarity();
-  const [address, setAddress] = useState("");
-  const [evmAddress, setEvmAddress] = useState("");
-  const { fetchProxyAddress, fetchSolanaAddress } = useProxyAddress();
-  const [activeSolanaAccount, setActiveSolanaAccount] = useState(false);
-  const [activeEvmAccount, setActiveEvmAccount] = useState(false);
+import { cn } from "@/lib/utils";
 
-  useEffect(() => {
-    if (isConnected) {
-      setAddress(wallet.address);
-      setEvmAddress(wallet.evmAddress);
-    } else {
-      setAddress("");
-      setEvmAddress("");
-    }
-  }, [isConnected, wallet]);
+import { Asset, TableHeaderArr } from "./portfolio-data";
+import { useWidgetsProvider } from "@/providers/widgets-provider";
 
-  const onCopy = async (text: string) => {
-    if (!text || !navigator) return;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Copied to clipboard");
-    } catch (err) {
-      console.error("Failed to copy: ", err);
-      toast.error("Failed to copy");
-    }
-  };
-
-  useMemo(() => {
-    if (isConnected) {
-      if (wallet?.chain === SupportChain.Solana && !wallet.evmAddress) {
-        const getProxyAddress = async () => {
-          const evmAddress = await fetchProxyAddress(wallet.address);
-          if (evmAddress) {
-            updateWalletAddress({
-              chain: SupportChain.Ethereum,
-              address: evmAddress.toString(),
-            });
-          } else {
-            setActiveEvmAccount(true);
-          }
-        };
-        getProxyAddress();
-      } else if (wallet?.chain === SupportChain.Ethereum && !wallet.address) {
-        const getSolanaAddress = async () => {
-          const solanaAddress = await fetchSolanaAddress(wallet.evmAddress);
-          if (solanaAddress) {
-            updateWalletAddress({
-              chain: SupportChain.Solana,
-              address: solanaAddress.toString(),
-            });
-          } else {
-            setActiveSolanaAccount(true);
-          }
-        };
-        getSolanaAddress();
-      }
-    }
-  }, [
-    isConnected,
-    wallet,
-    fetchProxyAddress,
-    fetchSolanaAddress,
-    updateWalletAddress,
-  ]);
-
-  const WalletLogo = () => {
-    return (
-      <div
-        className={`rounded-full w-[64px] h-[64px] bg-[#ab9ff2] flex items-center justify-center ${
-          !isConnected ? "opacity-60" : ""
-        }`}
-      >
-        <Image
-          src={
-            wallet?.chain === SupportChain.Ethereum
-              ? "/ethereum.svg"
-              : "/phantom.svg"
-          }
-          alt="phantom"
-          width={40}
-          height={40}
-        />
-      </div>
-    );
-  };
-
-  return (
-    <div className="h-auto lg:h-16 flex flex-col lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
-      <div className="flex flex-row gap-x-4 items-center">
-        <WalletLogo />
-        <div className="flex flex-col items-center lg:items-start gap-y-2">
-          <p className="text-sm text-muted-foreground">Total portfolio value</p>
-          <AccountBalance />
-        </div>
-      </div>
-      <Separator orientation="vertical" className="hidden md:block" />
-      <div className="flex flex-col items-center lg:items-start gap-y-2">
-        <p className="text-sm text-muted-foreground text-center lg:text-left">
-          Solana address
-        </p>
-        <div className="flex items-center gap-x-3">
-          <p className="text-2xl font-bold">
-            {address ? ellipsify(address) : "-"}
-          </p>
-          {address && (
-            <CopyIcon
-              onClick={() => onCopy(address)}
-              className="text-muted-foreground cursor-pointer hover:text-foreground"
-            />
-          )}
-          {/* <DashboardIcon className="text-muted-foreground cursor-pointer hover:text-foreground" /> */}
-        </div>
-      </div>
-      <Separator orientation="vertical" className="hidden md:block" />
-      <div className="flex flex-col items-center lg:items-start gap-y-2">
-        <p className="text-sm text-muted-foreground text-center lg:text-left">
-          Evm address
-        </p>
-        <div className="flex items-center gap-x-3">
-          <p className="text-2xl font-bold">
-            {evmAddress ? ellipsify(evmAddress) : "-"}
-          </p>
-          {evmAddress && (
-            <CopyIcon
-              onClick={() => onCopy(evmAddress)}
-              className="text-muted-foreground cursor-pointer hover:text-foreground"
-            />
-          )}
-          {/* <DashboardIcon className="text-muted-foreground cursor-pointer hover:text-foreground" /> */}
-        </div>
-      </div>
-
-      <div className="flex-1 flex justify-between lg:justify-end gap-x-4">
-        {activeEvmAccount && <ActiveEvmAccountButton />}
-
-        {activeSolanaAccount && <ActiveSolanaAccountBtn />}
-
-        {address && <ReceiveModal address={address} />}
-
-        {isConnected && wallet.chain === SupportChain.Solana && (
-          <SendSolModal />
-        )}
-        {isConnected && wallet.chain === SupportChain.Ethereum && (
-          <SendEthModal />
-        )}
-      </div>
-    </div>
-  );
-};
-
-type Asset = {
-  icon: string;
-  symbol: string;
-  price: string;
-  change24h: number;
-  value: number;
-  amount: number;
-  network: string;
-  networkIcon?: React.ReactNode;
-};
-
-const AssetRow = ({
-  asset,
-  onInternationalize,
-  onSend,
-  onReceive,
-}: {
-  asset: Asset;
-  onInternationalize: () => void;
-  onSend: () => void;
-  onReceive: () => void;
-}) => {
-  return (
-    <TableRow>
-      <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
-        <div className="flex gap-2 items-center">
-          <div className="hidden xl:block p-2 rounded-full bg-secondary">
-            <Image src={asset.icon} alt={asset.symbol} width={24} height={24} />
-          </div>
-          <h4 className="xl:text-lg font-bold uppercase">{asset.symbol}</h4>
-        </div>
-      </TableCell>
-      <TableCell className="p-3">
-        <div className="flex gap-2 items-center">
-          <span className="xl:text-lg font-bold">{asset.price}</span>{" "}
-          {asset.change24h > 0 ? (
-            <Badge className="text-xs rounded-md">
-              + {asset.change24h.toFixed(2)} %
-            </Badge>
-          ) : asset.change24h == 0 ? (
-            ""
-          ) : (
-            <Badge variant="destructive" className="text-xs rounded-md">
-              {asset.change24h.toFixed(2)} %
-            </Badge>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-        $ {asset.value.toFixed(4)}
-      </TableCell>
-      <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-        {asset.amount.toFixed(4)}
-      </TableCell>
-      <TableCell className="hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]">
-        <div className="flex gap-2 items-center">
-          {asset.networkIcon ? asset.networkIcon : asset.network}
-        </div>
-      </TableCell>
-      <TableCell className="p-3 text-right lg:w-[100px] xl:w-[160px]">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <DotsHorizontalIcon className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem
-              className="cursor-pointer"
-              onClick={onInternationalize}
-            >
-              Internationalize
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer" onClick={onSend}>
-              Send
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer" onClick={onReceive}>
-              Receive
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
-  );
-};
 
 const AssetsModal = ({
   open = false,
@@ -346,13 +106,10 @@ const AssetsModal = ({
               </div>
               <div className="flex flex-col">
                 <span className="text-2xl font-semibold">
-                  {assets[0].symbol == CurrencyEnum.USDC ||
-                  assets[0].symbol == CurrencyEnum.USDT
-                    ? totalAmount.toFixed(2)
-                    : totalAmount.toFixed(4)}
+                  {totalAmount > 0 ? totalAmount.toFixed(4) : "0.00"}
                 </span>
                 <span className="text-sm text-gray-500">
-                  ≈ ${totalValue.toFixed(2)}
+                  ≈ ${totalValue > 0 ? totalValue.toFixed(2) : "0.00"}
                 </span>
               </div>
             </div>
@@ -397,10 +154,10 @@ const AssetsModal = ({
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-lg font-semibold">
-                    {asset.amount.toFixed(2)}
+                    {asset.amount > 0 ? asset.amount.toFixed(4) : "0.00"}
                   </span>
                   <span className="text-sm text-gray-500">
-                    ≈ ${asset.value.toFixed(2)}
+                    ≈ ${asset.value > 0 ? asset.value.toFixed(2) : "0.00"}
                   </span>
                 </div>
               </div>
@@ -414,17 +171,17 @@ const AssetsModal = ({
 
 const MuitlAssetRow = ({
   assets,
-  onInternationalize,
+
   onSend,
   onReceive,
 }: {
   assets: Asset[];
-  onInternationalize: (asset: Asset) => void;
-  onSend: (asset: Asset) => void;
+
+  onSend: () => void;
   onReceive: (asset: Asset) => void;
 }) => {
   const [asset, setAsset] = useState<Asset | null>(null);
-  const [networks, setNetworks] = useState<string[]>([]);
+  // const [networks, setNetworks] = useState<string[]>([]);
   const [networkIcons, setNetworkIcons] = useState<React.ReactNode[]>([]);
   const [openAssetsModal, setOpenAssetsModal] = useState(false);
 
@@ -450,20 +207,15 @@ const MuitlAssetRow = ({
       });
 
       setAsset(_asset);
-      setNetworks(_networks);
+      // setNetworks(_networks);
       setNetworkIcons(_networkIcons);
-    } else {
-      setAsset(null);
-      setNetworks([]);
-      setNetworkIcons([]);
     }
   }, [assets]);
-
   return (
     <>
       {asset && (
         <TableRow>
-          <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
+          <TableCell className="p-3 w-[100px] lg:w-[160px] xl:w-[240px]">
             <div className="flex gap-2 items-center">
               <div className="hidden xl:block p-2 rounded-full bg-secondary">
                 <Image
@@ -476,30 +228,33 @@ const MuitlAssetRow = ({
               <h4 className="xl:text-lg font-bold uppercase">{asset.symbol}</h4>
             </div>
           </TableCell>
-          <TableCell className="p-3">
+          <TableCell className="p-3 w-[160px]">
             <div className="flex gap-2 items-center">
               <span className="xl:text-lg font-bold">{asset.price}</span>{" "}
               {asset.change24h > 0 ? (
-                <Badge className="text-xs rounded-md">
+                <Badge className="hidden lg:block text-xs rounded-md">
                   + {asset.change24h.toFixed(2)} %
                 </Badge>
               ) : asset.change24h == 0 ? (
                 ""
               ) : (
-                <Badge variant="destructive" className="text-xs rounded-md">
+                <Badge
+                  variant="destructive"
+                  className="hidden lg:block text-xs rounded-md"
+                >
                   {asset.change24h.toFixed(2)} %
                 </Badge>
               )}
             </div>
           </TableCell>
-          <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-            $ {asset.value.toFixed(2)}
+          <TableCell className="p-3 font-bold w-[100px] xl:w-[160px]">
+            $ {asset.value > 0 ? asset.value.toFixed(2) : "0.00"}
           </TableCell>
-          <TableCell className="p-3 font-bold lg:w-[100px] xl:w-[160px]">
-            {asset.amount.toFixed(2)}
+          <TableCell className="p-3 font-bold w-[100px] xl:w-[160px]">
+            {asset.amount > 0 ? asset.amount.toFixed(4) : "0.00"}
           </TableCell>
           <TableCell
-            className="cursor-pointer hidden md:table-cell p-3 lg:w-[100px] xl:w-[160px]"
+            className="cursor-pointer p-3 w-[100px] xl:w-[160px]"
             onClick={() => setOpenAssetsModal(true)}
           >
             <div className="flex gap-2 items-center">
@@ -508,7 +263,7 @@ const MuitlAssetRow = ({
               ))}
             </div>
           </TableCell>
-          <TableCell className="p-3 text-right lg:w-[100px] xl:w-[160px]">
+          <TableCell className="p-3 text-right w-[100px] xl:w-[160px]">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
@@ -518,13 +273,7 @@ const MuitlAssetRow = ({
               <DropdownMenuContent>
                 <DropdownMenuItem
                   className="cursor-pointer"
-                  onClick={() => onInternationalize(asset)}
-                >
-                  Internationalize
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => onSend(asset)}
+                  onClick={() => onSend()}
                 >
                   Send
                 </DropdownMenuItem>
@@ -551,56 +300,32 @@ const MuitlAssetRow = ({
 };
 
 export const AssetsTable = () => {
-  const { isConnected, wallet } = useBolarity();
-  const [solAddress, setSolAddress] = useState<string>();
-  const [evmAddress, setEvmAddress] = useState<string>();
+  const { ChainType, solAddress, evmAddress } = useBolarityWalletProvider();
+
   const [solList, setSolList] = useState<Asset[]>([]);
   const [ethList, setEthList] = useState<Asset[]>([]);
   const [usdtList, setUsdtList] = useState<Asset[]>([]);
   const [usdcList, setUsdcList] = useState<Asset[]>([]);
-  const [openReceiveModal, setOpenReceiveModal] = useState({
-    open: false,
-    address: "",
-  });
-  const [openSendModal, setOpenSendModal] = useState({
-    open: false,
-    currency: CurrencyEnum.SOLANA,
-  });
-
-  const [openInternationalizeSolModal, setOpenInternationalizeSolModal] =
-    useState(false);
 
   const {
-    accountBalance,
-    refetch: fetchBalance,
     isLoading,
-  } = useAccountBalance({
-    solAddress,
-    evmAddress,
-  });
+    data: accountBalance,
+    refetch: fetchBalance,
+  } = useGetBalance();
+
   const { feedsData } = useFeedsData();
 
-  useMemo(() => {
-    if (isConnected) {
-      const { address, evmAddress } = wallet;
-      if (address) {
-        setSolAddress(address);
-      }
-      if (evmAddress) {
-        setEvmAddress(evmAddress);
-      }
-    } else {
-      setSolAddress(undefined);
-      setEvmAddress(undefined);
+  useEffect(() => {
+
+    if (!ChainType) {
+
       setSolList([]);
       setEthList([]);
       setUsdtList([]);
       setUsdcList([]);
+      return;
     }
-  }, [isConnected, wallet]);
-
-  useMemo(() => {
-    if (!wallet || !feedsData || !accountBalance) {
+    if (!feedsData || !accountBalance) {
       return;
     }
 
@@ -613,95 +338,27 @@ export const AssetsTable = () => {
       ethSolBalance,
       ethUsdtBalance,
       ethUsdcBalance,
-    } = accountBalance;
+    }: any = accountBalance;
 
-    const _solList: Asset[] = [];
-    const _ethList: Asset[] = [];
-    const _usdtList: Asset[] = [];
-    const _usdcList: Asset[] = [];
+    console.log("solBalance", accountBalance);
 
-    let needSolBalance = false;
-    if (wallet.chain === SupportChain.Solana) {
-      needSolBalance = true;
-    } else if (wallet.address) {
-      needSolBalance = true;
-    }
-
-    if (needSolBalance) {
-      _solList.push({
-        icon: "/solana.svg",
-        symbol: CurrencyEnum.SOLANA,
-        price: feedsData.sol.formattedPrice,
-        change24h: feedsData.sol.change24h,
-        value: solBalance * feedsData.sol.price,
-        amount: solBalance,
-        network: "Solana",
-        networkIcon: <SiSolana className="h-5 w-5" />,
-      });
-    }
-
-    if (solEthBalance > 0) {
-      _ethList.push({
-        icon: "/ethereum.svg",
-        symbol: CurrencyEnum.ETHEREUM,
-        price: feedsData.eth.formattedPrice,
-        change24h: feedsData.eth.change24h,
-        value: solEthBalance * feedsData.eth.price,
-        amount: solEthBalance,
-        network: "Solana",
-        networkIcon: <SiSolana className="h-5 w-5" />,
-      });
-    }
-
-    if (solUsdtBalance > 0) {
-      _usdtList.push({
-        icon: "/tether.png",
-        symbol: CurrencyEnum.USDT,
-        price: feedsData.usdt.formattedPrice,
-        change24h: 0,
-        value: solUsdtBalance * feedsData.usdt.price,
-        amount: solUsdtBalance,
-        network: "Solana",
-        networkIcon: <SiSolana className="h-5 w-5" />,
-      });
-    }
-
-    if (solUsdcBalance > 0) {
-      _usdcList.push({
-        icon: "/usdc.png",
-        symbol: CurrencyEnum.USDC,
-        price: feedsData.usdc.formattedPrice,
-        change24h: 0,
-        value: solUsdcBalance * feedsData.usdc.price,
-        amount: solUsdcBalance,
-        network: "Solana",
-        networkIcon: <SiSolana className="h-5 w-5" />,
-      });
-    }
-
-    // Eth Balance
-    let needEthBalance = false;
-    if (wallet.chain === SupportChain.Ethereum) {
-      needEthBalance = true;
-    } else if (wallet.evmAddress) {
-      needEthBalance = true;
-    }
-
-    if (needEthBalance) {
-      _ethList.push({
-        icon: "/ethereum.svg",
-        symbol: CurrencyEnum.ETHEREUM,
-        price: feedsData.eth.formattedPrice,
-        change24h: feedsData.eth.change24h,
-        value: ethBalance * feedsData.eth.price,
-        amount: ethBalance,
-        network: "Ethereum",
-        networkIcon: <FaEthereum className="h-5 w-5" />,
-      });
+    if (ChainType === SupportChain.Solana || solAddress) {
+      setSolList([
+        {
+          icon: "/solana.svg",
+          symbol: CurrencyEnum.SOLANA,
+          price: feedsData.sol.formattedPrice,
+          change24h: feedsData.sol.change24h,
+          value: solBalance * feedsData.sol.price,
+          amount: solBalance,
+          network: "Solana",
+          networkIcon: <SiSolana className="h-5 w-5" />,
+        },
+      ]);
     }
 
     if (ethSolBalance > 0) {
-      _solList.push({
+      const ethSolArr = {
         icon: "/solana.svg",
         symbol: CurrencyEnum.SOLANA,
         price: feedsData.sol.formattedPrice,
@@ -710,85 +367,114 @@ export const AssetsTable = () => {
         amount: ethSolBalance,
         network: "Ethereum",
         networkIcon: <FaEthereum className="h-5 w-5" />,
-      });
+      };
+
+      setSolList(prevList => [...prevList, ethSolArr]);
+    }
+
+    if (solEthBalance > 0) {
+
+      const solEthArr = [
+        {
+          icon: "/ethereum.svg",
+          symbol: CurrencyEnum.ETHEREUM,
+          price: feedsData.eth.formattedPrice,
+          change24h: feedsData.eth.change24h,
+          value: solEthBalance * feedsData.eth.price,
+          amount: solEthBalance,
+          network: "Solana",
+          networkIcon: <SiSolana className="h-5 w-5" />,
+        }
+      ]
+      setEthList(new Set([...ethList, ...solEthArr]))
+    }
+
+
+
+    if (solUsdtBalance > 0) {
+      setUsdtList([
+        {
+          icon: "/tether.png",
+          symbol: CurrencyEnum.USDT,
+          price: feedsData.usdt.formattedPrice,
+          change24h: 0,
+          value: solUsdtBalance * feedsData.usdt.price,
+          amount: solUsdtBalance,
+          network: "Solana",
+          networkIcon: <SiSolana className="h-5 w-5" />,
+        },
+      ]);
+    }
+
+    if (solUsdcBalance > 0) {
+      setUsdcList([
+        {
+          icon: "/usdc.png",
+          symbol: CurrencyEnum.USDC,
+          price: feedsData.usdc.formattedPrice,
+          change24h: 0,
+          value: solUsdcBalance * feedsData.usdc.price,
+          amount: solUsdcBalance,
+          network: "Solana",
+          networkIcon: <SiSolana className="h-5 w-5" />,
+        },
+      ]);
+    }
+
+    if (ChainType === SupportChain.Ethereum || evmAddress) {
+      setEthList([
+        {
+          icon: "/ethereum.svg",
+          symbol: CurrencyEnum.ETHEREUM,
+          price: feedsData.eth.formattedPrice,
+          change24h: feedsData.eth.change24h,
+          value: ethBalance * feedsData.eth.price,
+          amount: ethBalance,
+          network: "Ethereum",
+          networkIcon: <FaEthereum className="h-5 w-5" />,
+        },
+      ]);
     }
 
     if (ethUsdtBalance > 0) {
-      _usdtList.push({
-        icon: "/tether.png",
-        symbol: CurrencyEnum.USDT,
-        price: feedsData.usdt.formattedPrice,
-        change24h: 0,
-        value: ethUsdtBalance * feedsData.usdt.price,
-        amount: ethUsdtBalance,
-        network: "Ethereum",
-        networkIcon: <FaEthereum className="h-5 w-5" />,
-      });
+      console.log("ethUsdtBalance---进来了-----", ethUsdtBalance);
+      setUsdtList([
+        {
+          icon: "/tether.png",
+          symbol: CurrencyEnum.USDT,
+          price: feedsData.usdt.formattedPrice,
+          change24h: 0,
+          value: ethUsdtBalance * feedsData.usdt.price,
+          amount: ethUsdtBalance,
+          network: "Ethereum",
+          networkIcon: <FaEthereum className="h-5 w-5" />,
+        },
+      ]);
     }
 
     if (ethUsdcBalance > 0) {
-      _usdcList.push({
-        icon: "/usdc.png",
-        symbol: CurrencyEnum.USDC,
-        price: feedsData.usdc.formattedPrice,
-        change24h: 0,
-        value: ethUsdcBalance * feedsData.usdc.price,
-        amount: ethUsdcBalance,
-        network: "Ethereum",
-        networkIcon: <FaEthereum className="h-5 w-5" />,
-      });
+      setUsdcList([
+        {
+          icon: "/usdc.png",
+          symbol: CurrencyEnum.USDC,
+          price: feedsData.usdc.formattedPrice,
+          change24h: 0,
+          value: ethUsdcBalance * feedsData.usdc.price,
+          amount: ethUsdcBalance,
+          network: "Ethereum",
+          networkIcon: <FaEthereum className="h-5 w-5" />,
+        },
+      ]);
     }
+  }, [accountBalance, feedsData, ChainType]);
 
-    setSolList(_solList);
-    setEthList(_ethList);
-    setUsdtList(_usdtList);
-    setUsdcList(_usdcList);
-  }, [wallet, accountBalance, feedsData]);
 
-  const onReceiveModal = useMemo(() => {
-    return (asset: Asset) => {
-      const address = asset.network === "Solana" ? solAddress : evmAddress;
-      setOpenReceiveModal({
-        open: true,
-        address: address || "",
-      });
-    };
-  }, [solAddress, evmAddress]);
 
-  const handleCloseReceiveModal = (open: boolean) => {
-    if (!open) {
-      setOpenReceiveModal({
-        open: false,
-        address: "",
-      });
-    }
-  };
 
-  const onSendModal = (currency: CurrencyEnum = CurrencyEnum.SOLANA) => {
-    setOpenSendModal({
-      open: true,
-      currency
-    });
-  };
-  const handleCloseSendModal = (open: boolean) => {
-    if (!open) {
-      setOpenSendModal({
-        open: false,
-        currency: CurrencyEnum.SOLANA
-      });
-    }
-  };
+  const { setIsOpen, setInitFromChain } = useWidgetsProvider();
 
-  const onInternationalizeModal = useMemo(() => {
-    return (asset: Asset) => {
-      if (asset.network === "Solana") {
-        if (asset.symbol === "SOL") {
-          setOpenInternationalizeSolModal(true);
-        }
-      }
-    };
-  }, []);
-
+  const [isReceive, setIsReceive] = useState(false);
+  const [isReceiveAddress, setIsReceiveAddress] = useState('');
   return (
     <>
       <div className="flex justify-between items-center">
@@ -804,92 +490,86 @@ export const AssetsTable = () => {
           <RefreshCcwIcon className="h-5 w-5 text-primary" />
         </Button>
       </div>
+
+
       <Table className="mt-0 md:mt-4">
         <TableHeader>
           <TableRow>
-            <TableHead className="p-3">Name</TableHead>
-            <TableHead className="p-3">Price/24h change</TableHead>
-            <TableHead className="p-3">Value</TableHead>
-            <TableHead className="p-3">Amount</TableHead>
-            <TableHead className="hidden md:table-cell p-3">Network</TableHead>
-            <TableHead></TableHead>
+            {TableHeaderArr.map((item, index) => (
+              <TableHead
+                key={index}
+                className={cn(
+                  "p-3",
+                  item == "Network" && "hidden md:table-cell"
+                )}
+              >
+                {item}
+              </TableHead>
+            ))}
+            {/* <TableHead className="p-3"></TableHead> */}
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <>
-              <TableRow>
-                <TableCell className="px-0 py-2" colSpan={6}>
-                  <Skeleton className="h-12" />
-                </TableCell>
-              </TableRow>
-            </>
+            <TableRow>
+              <TableCell className="px-0 py-2" colSpan={6}>
+                <Skeleton className="h-12" />
+              </TableCell>
+            </TableRow>
           ) : (
             <>
               {/* SOL Balance */}
               <MuitlAssetRow
                 assets={solList}
-                onInternationalize={() => {
-                  onInternationalizeModal(solList[0]);
-                }}
-                onSend={() => onSendModal(CurrencyEnum.SOLANA)}
+                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.SOLANA) }}
                 onReceive={() => {
-                  onReceiveModal(solList[0]);
+                  console.log('onReceive')
+                  setIsReceive(true);
+                  setIsReceiveAddress(solAddress);
                 }}
               />
               {/* ETH Balance */}
               <MuitlAssetRow
                 assets={ethList}
-                onInternationalize={() => {
-                  onInternationalizeModal(ethList[0]);
-                }}
-                onSend={() => onSendModal(CurrencyEnum.ETHEREUM)}
+                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.ETHEREUM) }}
                 onReceive={() => {
-                  onReceiveModal(ethList[0]);
+                  console.log('onReceive')
+                  setIsReceive(true);
+                  setIsReceiveAddress(evmAddress);
                 }}
               />
               {/* USDT Balance */}
               <MuitlAssetRow
                 assets={usdtList}
-                onInternationalize={() => {
-                  onInternationalizeModal(usdtList[0]);
-                }}
-                onSend={() => onSendModal(CurrencyEnum.USDT)}
+                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.USDT) }}
                 onReceive={() => {
-                  onReceiveModal(usdtList[0]);
+                  // onReceiveModal(usdtList[0]);
                 }}
               />
               {/* USDC Balance */}
               <MuitlAssetRow
                 assets={usdcList}
-                onInternationalize={() => {
-                  onInternationalizeModal(usdtList[0]);
-                }}
-                onSend={() => onSendModal(CurrencyEnum.USDC)}
+                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.USDC) }}
                 onReceive={() => {
-                  onReceiveModal(usdtList[0]);
+                  // onReceiveModal(usdtList[0]);
                 }}
               />
             </>
           )}
         </TableBody>
       </Table>
-      {openReceiveModal.open && (
-        <ReceiveModal
-          open={true}
-          address={openReceiveModal.address}
-          onOpenChange={handleCloseReceiveModal}
-          withButton={false}
+
+      {
+        ChainType &&
+        <QrCodeModal open={isReceive}
+          address={isReceiveAddress}
+          onOpenChange={(open) => {
+            setIsReceive(open);
+            setIsReceiveAddress('');
+          }}
         />
-      )}
-      {openSendModal.open && (
-        <SendModal
-          open={true}
-          currency={openSendModal.currency}
-          onOpenChange={handleCloseSendModal}
-          withButton={false}
-        />
-      )}
+      }
+
     </>
   );
 };

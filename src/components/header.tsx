@@ -6,7 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ModeToggle } from "./widgets/mode-toggle";
-import { WalletButton } from "./widgets/wallet-ui";
+import dynamic from "next/dynamic";
+// import WalletButton from "./widgets/wallet-ui";
+const WalletButton = dynamic(() => import("./widgets/wallet-ui"), {
+  ssr: false, // 可选：禁用 SSR
+});
 
 const pages: { label: string; path: string }[] = [
   { label: "Portfolio", path: "/portfolio" },

@@ -1,4 +1,9 @@
 "use client";
+import { useMemo, useState } from "react";
+import { FaEthereum } from "react-icons/fa";
+import { SiSolana } from "react-icons/si";
+
+import { cn, ellipsify } from "@/lib/utils";
 
 import {
   DropdownMenu,
@@ -7,122 +12,126 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useBolarity } from "@/hooks/useBolarity";
-import { ellipsify } from "@/lib/utils";
-import { useEffect, useState } from "react";
-import { FaEthereum } from "react-icons/fa";
-import { SiSolana } from "react-icons/si";
 import { SolanaConnectModal } from "@/providers/solana-provider";
 import { EvmConnectModal } from "@/providers/evm-provider";
-import { SupportChain } from "@/config";
-import { useWallet } from "@solana/wallet-adapter-react";
-// import { useCluster } from "@/providers/cluster-provider";
 
-export const WalletButton = () => {
-  const { isConnected, wallet, connectWallet, disconnectWallet } =
-    useBolarity();
-  const { disconnect, publicKey, connected } = useWallet();
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useDisconnect as useDisconnectEvm } from "wagmi";
+import { SupportChain } from "@/config";
+
+const WalletButton = () => {
+  const { disconnect: disconnectSolana } = useWallet();
+
+  const { disconnectAsync } = useDisconnectEvm();
+
   const [openEvmModal, setOpenEvmModal] = useState(false);
   const [openSolanaModal, setOpenSolanaModal] = useState(false);
-  const [address, setAddress] = useState<string>("");
-  // const { cluster } = useCluster();
 
-  useEffect(() => {
-    // console.log("WalletButton isConnected:", isConnected);
-    if (isConnected) {
-      if (wallet.chain === SupportChain.Solana) {
-        setAddress(wallet.address);
-      } else if (wallet.chain === SupportChain.Ethereum) {
-        setAddress(wallet.evmAddress);
-      }
-    }
-  }, [isConnected, wallet]);
-  
-  const onSolanaConnected = (address: string, disconnect: () => void) => {
-    setOpenSolanaModal(false);
-  };
+  const {
+    ChainType,
+    solAddress,
+    evmAddress,
+    setSolAddress,
+    setEvmAddress,
+    setChainType,
+  } = useBolarityWalletProvider();
 
-  useEffect(() => {
-    if (connected) {
-      if (publicKey) {
-        connectWallet({
-          chain: SupportChain.Solana,
-          address: publicKey.toString(),
-          disconnect,
-        });
-      }
-    }
-  }, [connected, publicKey, connectWallet, disconnect]);
 
-  const onEvmConnected = (address: string, disconnect: () => void) => {
-    console.log("onEvmConnected address:", address);
+
+  const handleEvmConnected = (address: string) => {
+    console.log("handleEvmConnected:", address);
     setOpenEvmModal(false);
-    connectWallet({
-      chain: SupportChain.Ethereum,
-      address,
-      disconnect,
-    });
   };
 
+  const DisconnectWallet = () => {
+    console.log("DisconnectWallet", ChainType);
+    switch (ChainType) {
+      // 刷新 evm 代理地址
+      case SupportChain.Solana:
+        disconnectSolana();
+      // 刷新 solana 代理地址
+      case SupportChain.Ethereum:
+        handleDisconnect();
+      default:
+        break;
+    }
+
+    setSolAddress("");
+    setEvmAddress("");
+    setChainType(null);
+    // setTimeout(() => {
+
+    //   window.localStorage.clear();
+    //   window.location.reload();
+    // }, 500);
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectAsync();
+      console.log("Wallet disconnected successfully.");
+      // toast.success("Wallet disconnected successfully.");
+    } catch (error: any) {
+      console.error("Failed to disconnect wallet:", error);
+      // toast.error("Failed to disconnect wallet: " + error.message);
+    }
+  };
+  const addressInfo = useMemo(() => {
+    switch (ChainType) {
+      case SupportChain.Solana:
+        return ellipsify(solAddress);
+      case SupportChain.Ethereum:
+        return ellipsify(evmAddress);
+      default:
+        return "Connect Wallet";
+    }
+  }, [solAddress, evmAddress, ChainType]);
   return (
-    <>
-      {isConnected ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="font-bold flex gap-2 w-32">
-              <span>{address ? ellipsify(address) : "unknown"}</span>
-              {/* <span className="capitalize">[{cluster.name}]</span> */}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-36">
+    <div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button className="font-bold flex gap-2 w-32">{addressInfo}</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className={cn((ChainType && "w-36") || "w-40")}>
+          {(ChainType && (
             <DropdownMenuItem
-              className="py-2 flex items-center gap-2 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                disconnectWallet();
-              }}
+              className="py-2 flex items-center gap-2 cursor-pointer font-bold"
+              onClick={DisconnectWallet}
             >
-              <span className="font-bold">Disconnect</span>
+              Disconnect
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="font-bold">Connect Wallet</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-40">
-              <DropdownMenuItem onClick={() => setOpenEvmModal(true)}>
-                <div className="flex items-center gap-2 py-2 cursor-pointer">
-                  <FaEthereum className="w-5 h-5" />
-                  <span className="font-bold">Evm Wallet</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setOpenSolanaModal(true)}>
-                <div className="flex items-center gap-2 py-2 cursor-pointer">
-                  <SiSolana className="w-5 h-5" />
-                  <span className="font-bold">Solana Wallet</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      )}
+          )) || (
+              <>
+                <DropdownMenuItem onClick={() => setOpenEvmModal(true)}>
+                  <div className="flex items-center gap-2 py-2 cursor-pointer">
+                    <FaEthereum className="w-5 h-5" />
+                    <span className="font-bold">EVM Wallet</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setOpenSolanaModal(true)}>
+                  <div className="flex items-center gap-2 py-2 cursor-pointer">
+                    <SiSolana className="w-5 h-5" />
+                    <span className="font-bold">Solana Wallet</span>
+                  </div>
+                </DropdownMenuItem>
+              </>
+            )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <SolanaConnectModal
         open={openSolanaModal}
-        onOpenChange={(open) => {
-          setOpenSolanaModal(open);
-        }}
-        onConnected={onSolanaConnected}
+        onOpenChange={setOpenSolanaModal}
+        onConnected={() => setOpenSolanaModal(false)}
       />
       <EvmConnectModal
         open={openEvmModal}
-        onOpenChange={(open) => {
-          setOpenEvmModal(open);
-        }}
-        onConnected={onEvmConnected}
+        onOpenChange={setOpenEvmModal}
+        onConnected={handleEvmConnected}
       />
-    </>
+    </div>
   );
 };
+
+export default WalletButton;
