@@ -10,4 +10,5 @@ export { default as WalletLogo } from "./wallet-logo";
 
 
 export { default as QrCodeModal } from "./qrCode-modal";
+// export { default as QrCodeModalSingle } from "./qrCode-modal-single";
 

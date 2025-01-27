@@ -1,8 +1,8 @@
-import { SupportChain } from '@/config'
-import { ellipsify } from '@/lib/utils'
-import { useMemo } from 'react'
-import { Button } from '@/components/ui/button'
-import { Send, HandCoins } from 'lucide-react'
+import { CurrencyEnum, SupportChain } from "@/config";
+import { ellipsify } from "@/lib/utils";
+import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Send, HandCoins } from "lucide-react";
 
 import {
   WalletLogo,
@@ -10,32 +10,37 @@ import {
   AccountBalance,
   ActiveEvmAccountButton,
   ActiveSolanaAccountBtn,
-
   SendModal,
   QrCodeModal,
-} from './account-ui'
-import { Separator } from '../ui/separator'
-import { useBolarityWalletProvider } from '@/providers/bolarity-wallet-provider'
-import { useGetBalance } from '@/hooks/useAccount'
-import { useWidgetsProvider } from '@/providers/widgets-provider'
-import { useState } from 'react'
+  // QrCodeModalSingle,
+} from "./account-ui";
+import { Separator } from "../ui/separator";
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useGetBalance } from "@/hooks/useAccount";
+import { useWidgetsProvider } from "@/providers/widgets-provider";
+import { useState } from "react";
 
 export const AccountInfo = () => {
-  const { ChainType, solAddress, evmAddress } = useBolarityWalletProvider()
-  const { setIsOpen } = useWidgetsProvider()
+  const { ChainType, solAddress, evmAddress } = useBolarityWalletProvider();
+  const { setIsOpen, setInitFromChain } = useWidgetsProvider();
 
   const activeSolanaAccount = useMemo(() => {
-    if (ChainType === SupportChain.Ethereum && !solAddress) return true
-    return false
-  }, [solAddress, ChainType]),
+      if (ChainType === SupportChain.Ethereum && !solAddress) return true;
+      return false;
+    }, [solAddress, ChainType]),
     activeEvmAccount = useMemo(() => {
-      if (ChainType === SupportChain.Solana && !evmAddress) return true
-      return false
-    }, [evmAddress, ChainType])
+      if (ChainType === SupportChain.Solana && !evmAddress) return true;
+      return false;
+    }, [evmAddress, ChainType]);
 
-  const { data: accountBalance } = useGetBalance()
+  const { data: accountBalance } = useGetBalance();
   const [isReceive, setIsReceive] = useState(false);
 
+  const isActiveStatue = useMemo(() => {
+    if (evmAddress && solAddress && ChainType) return true;
+    return false;
+  }, [evmAddress, solAddress, ChainType]);
+  console.log("isActiveStatue", isActiveStatue);
   return (
     <div className="h-auto lg:h-16 flex flex-col lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
       <div className="flex flex-row gap-x-4 items-center">
@@ -55,9 +60,9 @@ export const AccountInfo = () => {
         </p>
         <div className="flex items-center gap-x-3">
           <p className="text-2xl font-bold">
-            {(solAddress && ellipsify(solAddress)) || '-'}
+            {(solAddress && ellipsify(solAddress)) || "-"}
           </p>
-          <CopyButton text={solAddress || ''} />
+          <CopyButton text={solAddress || ""} />
         </div>
       </div>
       <Separator orientation="vertical" className="hidden md:block" />
@@ -67,9 +72,9 @@ export const AccountInfo = () => {
         </p>
         <div className="flex items-center gap-x-3">
           <p className="text-2xl font-bold">
-            {(evmAddress && ellipsify(evmAddress)) || '-'}
+            {(evmAddress && ellipsify(evmAddress)) || "-"}
           </p>
-          <CopyButton text={evmAddress || ''} />
+          <CopyButton text={evmAddress || ""} />
         </div>
       </div>
 
@@ -82,22 +87,34 @@ export const AccountInfo = () => {
           <ActiveSolanaAccountBtn evmAddress={evmAddress} />
         )}
 
-
-        {
-          ChainType &&
-
+        {isActiveStatue && (
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsOpen(true);
+                setInitFromChain(
+                  ChainType == SupportChain.Ethereum
+                    ? CurrencyEnum.ETHEREUM
+                    : CurrencyEnum.SOLANA
+                );
+              }}
+            >
               <Send className="h-5 w-5 pr-1" />
               Send
             </Button>
 
-            <Button variant="outline" size="sm" onClick={() => setIsReceive(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReceive(true)}
+            >
               <HandCoins className="h-5 w-5 pr-1" />
               Receive
             </Button>
           </>
-        }
+        )}
         <SendModal
           accountBalance={accountBalance}
           ChainType={ChainType}
@@ -105,19 +122,33 @@ export const AccountInfo = () => {
           evmAddress={evmAddress}
         />
 
-
-        {
+        {/* {
           // 二维码
-          ChainType &&
-          <QrCodeModal
+          !isActiveStatue &&
+          <QrCodeModalSingle
+            title={ChainType == SupportChain.Ethereum ? 'Evm address' : 'Solana address'}
             address={ChainType == SupportChain.Ethereum ? evmAddress : solAddress}
             open={isReceive}
             onOpenChange={(open) => {
               setIsReceive(open);
             }}
           />
+        } */}
+
+        {
+          // 二维码
+          isActiveStatue && (
+            <QrCodeModal
+              open={isReceive}
+              onOpenChange={(open) => {
+                setIsReceive(open);
+              }}
+              address={evmAddress}
+              solAddress={solAddress}
+            />
+          )
         }
       </div>
     </div>
-  )
-}
+  );
+};

@@ -280,16 +280,14 @@ export const wait = (time: number) => {
   return new Promise((resolve) => setTimeout(resolve, time));
 };
 
-
-
-
 export const isSolanaAddress = (address: string) => {
   try {
     // 尝试创建一个 PublicKey 实例
     const publicKey = new PublicKey(address);
 
     // 检查地址是否解码为32字节
-    return PublicKey.isOnCurve(publicKey.toBytes());
+    // return PublicKey.isOnCurve(publicKey.toBytes());
+    return publicKey && true;
   } catch (error) {
     // 如果报错，说明不是有效的Solana地址
     return false;

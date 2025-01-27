@@ -2,11 +2,18 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { SupportChain } from "@/config";
-import { useAccount as useEvmAccount } from "wagmi";
+import {
+  EVM_WSOL_CONTRACT,
+  SupportChain,
+  TOKEN_BRIDGE_RELAYER_CONTRACT,
+} from "@/config";
+import { useAccount as useEvmAccount, useReadContract } from "wagmi";
 import { useFetchAddress } from "@/hooks/bolaryty/useFetchAddress";
+import { erc20Abi } from "viem";
+import { publicClient } from "@/config/wagmi";
 
 interface BolarityWalletProviderContextType {
+  allowanceWsol: string;
   evmAddress: string;
   solAddress: string;
   ChainType: SupportChain | null;
@@ -15,18 +22,23 @@ interface BolarityWalletProviderContextType {
   setChainType: (address: SupportChain | null) => void;
   SolRefreshProxyAddress: () => void;
   EvmRefreshProxyAddress: () => void;
+  CheckApproveTransfer: () => Promise<number>;
 }
 
 const BolarityWalletProviderContext =
   createContext<BolarityWalletProviderContextType>({
+    allowanceWsol: "",
     evmAddress: "",
     solAddress: "",
     ChainType: null,
-    setSolAddress: () => { },
-    setEvmAddress: () => { },
-    setChainType: () => { },
-    SolRefreshProxyAddress: () => { },
-    EvmRefreshProxyAddress: () => { },
+    setSolAddress: () => {},
+    setEvmAddress: () => {},
+    setChainType: () => {},
+    SolRefreshProxyAddress: () => {},
+    EvmRefreshProxyAddress: () => {},
+    CheckApproveTransfer: async () => {
+      return 0;
+    },
   });
 
 export const useBolarityWalletProvider = () =>
@@ -76,7 +88,25 @@ export function BolarityWalletProvider({
       });
     }
   }
+  // 读取是否授权了wsol合约
+  const { data: allowanceWsol } = useReadContract({
+    address: EVM_WSOL_CONTRACT,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: [evmAddress as `0x${string}`, TOKEN_BRIDGE_RELAYER_CONTRACT],
+  });
+  console.log("allowanceWsol---init--", allowanceWsol);
 
+  const CheckApproveTransfer = async () => {
+    const allowanceStatus = await publicClient.readContract({
+      address: EVM_WSOL_CONTRACT,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [evmAddress as `0x${string}`, TOKEN_BRIDGE_RELAYER_CONTRACT],
+    });
+    console.log("allowanceStatus", allowanceStatus);
+    return Number(allowanceStatus);
+  };
   return (
     <BolarityWalletProviderContext.Provider
       value={{
@@ -88,6 +118,8 @@ export function BolarityWalletProvider({
         setChainType,
         SolRefreshProxyAddress,
         EvmRefreshProxyAddress,
+        allowanceWsol,
+        CheckApproveTransfer,
       }}
     >
       {children}

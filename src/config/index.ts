@@ -49,3 +49,15 @@ export const WORMHOLE_EVM_CHAIN_NAME =
 export const UNI_PROXY = require("../abis/UniProxy.json");
 export const TOKEN_BRIDGE_RELAYER = require("../abis/TokenBridgeRelayer.json");
 // export const AAVE = require('../abis/AAVE.json');
+
+export const PROXY_LIDO_CONTRACT_ADDRESS = process.env
+  .NEXT_PUBLIC_PROXY_LIDO_CONTRACT_ADDRESS! as `0x${string}`;
+export const ETH_TO_STETH_STAKING = require("../abis/EthToStethStaking.json");
+
+// 授权的最大值
+export const APPROVE_BASE_AMOUNT = BigInt(
+  "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+);
+
+export const ETH_CONTROLLED_SOL_TOKEN =
+  process.env.NEXT_PUBLIC_WORMHOLE_EVM_CONTROLLED_TOKEN_BRIDGE!;

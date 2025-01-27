@@ -1,39 +1,35 @@
-import React from 'react'
-import { useForm } from 'react-hook-form'
+import React from "react";
+import { useForm } from "react-hook-form";
 
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { useState } from 'react'
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+
 import {
   CurrencyEnum,
   EVM_WSOL_CONTRACT,
   SupportChain,
-  TOKEN_BRIDGE_RELAYER_CONTRACT,
   WORMHOLE_EVM_CHAIN_NAME,
   WORMHOLE_SOLANA_BRIDGE,
   WORMHOLE_SOLANA_TOKEN_BRIDGE,
-} from '@/config'
-import { transferNativeSol, ChainName } from '@certusone/wormhole-sdk'
+} from "@/config";
+import { transferNativeSol, ChainName } from "@certusone/wormhole-sdk";
 
 import {
   formatRecipientAddress,
   handleTransactionSuccess,
   isSolanaAddress,
-} from '@/lib/utils'
+} from "@/lib/utils";
 
-import { useMemo } from 'react'
-import { useCluster } from '@/providers/cluster-provider'
-import { Loading } from '@/components/ui/loading'
+import { useCluster } from "@/providers/cluster-provider";
+import { Loading } from "@/components/ui/loading";
 
-import { toast } from 'sonner'
+import { toast } from "sonner";
 
-import { publicClient } from '@/config/wagmi'
 import {
   bytesToHex,
   encodeAbiParameters,
   encodeFunctionData,
-  erc20Abi,
   pad,
   parseAbi,
   parseUnits,
@@ -41,15 +37,14 @@ import {
   toHex,
   parseEther,
   isAddress,
-} from 'viem'
-import { useSendTransaction } from 'wagmi'
-import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import {
-  PublicKey
-} from "@solana/web3.js";
-import WormHoleTransferFunc from './WormHoleTransferFunc'
-import EthTransferFunc from './EthTransferFunc'
-import { useWidgetsProvider } from '@/providers/widgets-provider'
+  formatUnits,
+} from "viem";
+import { useSendTransaction } from "wagmi";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import WormHoleTransferFunc from "./WormHoleTransferFunc";
+import EthTransferFunc from "./EthTransferFunc";
+import { useWidgetsProvider } from "@/providers/widgets-provider";
 
 import {
   Select,
@@ -58,25 +53,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Image from 'next/image'
-import { SetFromChainLIst } from './data'
+import Image from "next/image";
+import { SetFromChainLIst } from "./data";
 
-const STATIC_AMOUNT = 0.01
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useMemo, useState } from "react";
 
+const STATIC_AMOUNT = 0.01;
 
 const TransferForm = ({
-
   accountBalance,
   solPublicKey,
   chainType,
-  evmAddress
+  evmAddress,
 }: {
-  accountBalance: any
-  solPublicKey: string
-  chainType: string
-  evmAddress: string
+  accountBalance: any;
+  solPublicKey: string;
+  chainType: string;
+  evmAddress: string;
 }) => {
   const { setIsOpen, initFromChain } = useWidgetsProvider();
+
+  const { CheckApproveTransfer } = useBolarityWalletProvider();
 
   const {
     register,
@@ -84,69 +82,71 @@ const TransferForm = ({
     watch,
     formState: { errors },
     setValue,
-    getValues
   } = useForm({
     defaultValues: {
       amount: 0,
       fromChain: initFromChain,
-      network: chainType == SupportChain.Ethereum ? CurrencyEnum.ETHEREUM : CurrencyEnum.SOLANA,
-      address: '',
+      network:
+        chainType == SupportChain.Ethereum
+          ? CurrencyEnum.ETHEREUM
+          : CurrencyEnum.SOLANA,
+      address: "",
     },
-  })
+  });
 
-
-
-  const { getExplorerUrl } = useCluster()
-  const { sendTransactionAsync } = useSendTransaction()
-
+  const { getExplorerUrl } = useCluster();
+  const { sendTransactionAsync } = useSendTransaction();
 
   // 发送Solana转账: Solana -> Ethereum - 完成
   const solanaToEth = async (amount: number, address: string) => {
-    const { ethSolBalance = 0 }: any = accountBalance
-
-    const allowance = await publicClient.readContract({
-      address: EVM_WSOL_CONTRACT,
-      abi: erc20Abi,
-      functionName: 'allowance',
-      args: [evmAddress as `0x${string}`, TOKEN_BRIDGE_RELAYER_CONTRACT],
-    })
-    console.log('allowance', allowance)
+    const { ethSolBalance = 0 }: any = accountBalance;
     // 如果授权为0，则需要授权
-    if (allowance === BigInt(0)) {
-      const confirm = await approveWSol({
-        fromPubkey: new PublicKey(solPublicKey),
-        contractAddress: EVM_WSOL_CONTRACT,
-      })
-      console.log('confirm----0----', confirm)
+    if (!(await CheckApproveTransfer())) {
+      const confirm = await approveWSol();
+      console.log("confirm----0----", confirm);
+
       if (confirm) {
-        JudgingBalance(amount, ethSolBalance, address)
+        const intervalTime = setInterval(async () => {
+          if (await CheckApproveTransfer()) {
+            clearInterval(intervalTime);
+            JudgingBalance(amount, ethSolBalance, address);
+          }
+        }, 1000);
       }
     } else {
-      JudgingBalance(amount, ethSolBalance, address)
+      JudgingBalance(amount, ethSolBalance, address);
     }
-  }
+  };
   function JudgingBalance(
     amount: number,
     ethSolBalance: number,
     address: string
   ) {
-    if (amount < ethSolBalance && amount > STATIC_AMOUNT) {// 先转本链
-      console.log('先转本链')
-      buildWormholeTransaction(amount, address)
-
-    } else {// 如果本链余额不足，则需要先转本链+跨链
-      console.log('先转跨链+本链')
-      buildTransferSameChain(amount, address)
+    console.log("amount-----", amount);
+    console.log("ethSolBalance-----", ethSolBalance);
+    if (amount <= ethSolBalance) {
+      // 先转本链
+      console.log("先转本链");
+      buildWormholeTransaction(amount, address);
+    } else {
+      // 如果本链余额不足，则需要先转本链+跨链
+      console.log("先转跨链+本链");
+      buildTransferSameChain(amount, address);
     }
-
   }
+
   const buildTransferSameChain = async (isAmount: number, toPubkey: string) => {
+    const { ethSolBalance = 0, solBalance = 0 }: any = accountBalance;
 
-    const { ethSolBalance = 0 }: any = accountBalance
-
-    const amount = isAmount - ethSolBalance + STATIC_AMOUNT
+    let amount = 0;
+    if (isAmount >= solBalance) {
+      amount = isAmount - ethSolBalance - STATIC_AMOUNT;
+    } else {
+      amount = isAmount - ethSolBalance;
+    }
+    console.log("amount--跨链--", amount);
     // 如果本链余额足够，直接发送交易消息
-    const toEvmAddress = formatRecipientAddress(toPubkey)
+    const toEvmAddress = formatRecipientAddress(toPubkey);
     try {
       const transaction = await transferNativeSol(
         connection,
@@ -159,102 +159,100 @@ const TransferForm = ({
       );
 
       const signature = await solanaSendTransaction(transaction, connection, {
-        preflightCommitment: 'confirmed',
+        preflightCommitment: "confirmed",
         maxRetries: 3,
-      })
+      });
       // 4. 处理交易结果
       handleTransactionSuccess(
         signature,
         getExplorerUrl(`tx/${signature}`),
-        'Transfer'
-      )
-      if (ethSolBalance > STATIC_AMOUNT) {
-        buildWormholeTransaction(ethSolBalance - STATIC_AMOUNT, toPubkey)
+        "Transfer"
+      );
+      if (ethSolBalance < isAmount && ethSolBalance) {
+        buildWormholeTransaction(ethSolBalance, toPubkey);
       } else {
-        setLoadingState(false)
-        setIsOpen(false)
+        setLoadingState(false);
+        setIsOpen(false);
       }
-
     } catch (error) {
-      toast.error('Transaction failed: ' + error)
+      toast.error("Transaction failed: " + error);
+      if (ethSolBalance > isAmount && ethSolBalance) {
+        setLoadingState(false);
+        setIsOpen(false);
+      }
     }
-    finally {
-      setLoadingState(false)
-      setIsOpen(false)
-    }
-  }
-
+  };
 
   // 进行目标链转账
   const buildWormholeTransaction = async (amount: number, address: string) => {
-    console.log('buildWormholeTransaction---solPublicKey---', solPublicKey)
-
     const userAddress = encodeAbiParameters(
-      [{ type: 'bytes32' }],
+      [{ type: "bytes32" }],
       [toHex(Buffer.from(new PublicKey(solPublicKey).toBytes()))]
-    )
+    );
     const contractAddressPadded = pad(toHex(toBytes(EVM_WSOL_CONTRACT)), {
       size: 32,
-      dir: 'left',
-    })
+      dir: "left",
+    });
     const contractAddress = encodeAbiParameters(
-      [{ type: 'bytes32' }],
+      [{ type: "bytes32" }],
       [contractAddressPadded]
-    )
-    let ABI = ['function transfer(address to, uint256 value) returns (bool)']
-    const iface = parseAbi(ABI)
-    const bridgeAmount = parseUnits(amount.toString(), 9) // Sol 的精度为9
+    );
+    let ABI = ["function transfer(address to, uint256 value) returns (bool)"];
+    const iface = parseAbi(ABI);
+    const bridgeAmount = parseUnits(amount.toString(), 9); // Sol 的精度为9
     const paras = encodeFunctionData({
       abi: iface,
-      functionName: 'transfer',
+      functionName: "transfer",
       args: [address, bridgeAmount],
-    })
+    });
     const payloadPart = encodeAbiParameters(
-      [{ type: 'bytes32' }, { type: 'uint256' }, { type: 'bytes' }],
+      [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
       [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
-    )
+    );
     const txPayload = encodeAbiParameters(
-      [{ type: 'bytes32' }, { type: 'bytes' }],
+      [{ type: "bytes32" }, { type: "bytes" }],
       [userAddress, payloadPart]
-    )
+    );
 
     // 发送交易
     const confirm = await sendSolanaWormholeTransaction({
       solanaPublicKey: new PublicKey(solPublicKey),
       txPayload,
-    })
-    console.log('confirm', confirm)
-
-  }
+    });
+    console.log("confirm", confirm);
+  };
   // 交易状态
   function transactionStatus(hash: string) {
     if (hash) {
-      setLoadingState(false)
-      handleTransactionSuccess(hash, getExplorerUrl(`tx/${hash}`), 'Transfer')
-      setIsOpen(false)
+      setLoadingState(false);
+      handleTransactionSuccess(hash, getExplorerUrl(`tx/${hash}`), "Transfer");
+      setIsOpen(false);
     } else {
-      toast.error('Transaction failed: ')
-      setIsOpen(false)
+      toast.error("Transaction failed: ");
+      setIsOpen(false);
     }
   }
   // 发送EVM转账
   const {
     ethereumTransferEthBalanceToSolana,
     ethereumTransferSplBalanceToEvm,
-    ethereumTransferSolBalanceToSolana,
+    ethTransferToSolBalanceToSolana,
+    ethTransferToSolApprove,
     ethereumTransferSolBalanceToEth,
-  } = EthTransferFunc()
+    ethereumCoontrollSolBalanceToEth,
+    ethTransferCheckApprove,
+  } = EthTransferFunc();
 
   // 2.1 发送EVM转账 eth -> eth
   const ethTransferToEvm = async (amount: number, address: string) => {
-    const balanceInWei = parseEther(amount.toString()) // Convert ETH to wei
+    const balanceInWei = parseEther(amount.toString()); // Convert ETH to wei
     const hash = await sendTransactionAsync({
       to: address as `0x${string}`,
       value: balanceInWei,
-    })
-    console.log('hash--发送EVM转账 eth -> eth--', hash)
-    transactionStatus(hash)
-  }
+    });
+    console.log("hash--发送EVM转账 eth -> eth--", hash);
+    transactionStatus(hash);
+  };
   // 2.2 发送EVM转账 usdt -> usdt  usdc -> usdc
   const ethTransferToUsdt = async (
     balance: number,
@@ -265,112 +263,244 @@ const TransferForm = ({
       balance,
       to,
       token,
-    })
-    console.log('hash--发送EVM转账 usdt -> usdt--', hash)
-    transactionStatus(hash)
-  }
-  // 2.3 发送EVM转账 wsol -> wsol
-  const ethTransferToWsol = async (amount: number, address: string) => {
-    const hash = await ethereumTransferSolBalanceToEth({
-      to: address,
-      balance: amount,
-    })
-    console.log('hash--发送EVM转账 wsol -> wsol--', hash)
-    transactionStatus(hash)
-  }
-  // 2.4 发送EVM跨桥转账 wsol -> sol
-  const ethTransferToSol = (amount: number, address: string) => {
-    // const hash = await
-    ethereumTransferSolBalanceToSolana({
-      balance: amount,
-      to: address,
-    })
-    // console.log('hash--ethTransferToSol--', hash)
-    // transactionStatus(hash as string)
-  }
+    });
+    console.log("hash--发送EVM转账 usdt -> usdt--", hash);
+    transactionStatus(hash);
+  };
+
+  // 2.3 发送EVM转账 wsol -> wsolconst
+
+  const checkApproveEthToSol = async (amount: number, to: string) => {
+      const aParsed = parseUnits(amount.toString(), 9); // 将数字提升到 9 位精度
+      const bParsed = parseUnits(currentSolBalance_Eth.toString(), 9);
+
+      const result = aParsed - bParsed; // 精确计算差值
+      const formattedResult = formatUnits(result, 9); // 将结果转换回小数
+      if (await CheckApproveTransfer()) {
+        let amount_balance = 0;
+        if (currentBalance_sol && currentBalance_sol <= STATIC_AMOUNT) {
+          console.log("solCurrentBalance", currentBalance_sol);
+          amount_balance =
+            amount > currentSolBalance_Eth
+              ? Number(formattedResult) - STATIC_AMOUNT
+              : amount;
+        } else {
+          amount_balance =
+            amount > currentSolBalance_Eth ? Number(formattedResult) : amount;
+        }
+        // 要不要判断 sol地址的sol余额，是否少等于0.001？如果sol余额少于0.001，就不跨桥转账，直接发送eth wsol交易
+        if (amount_balance) {
+          ethereumCoontrollSolBalanceToEth({
+            to,
+            balance: amount,
+            currentBalance: currentSolBalance_Eth,
+            solCurrentBalance: currentBalance_sol,
+          });
+        } else {
+          ethereumTransferSolBalanceToEth({
+            to,
+            balance: currentSolBalance_Eth,
+          });
+        }
+      } else {
+        console.log("跨链转账--SOL---没有approve");
+        ethTransferCheckApprove(to, amount, currentSolBalance_Eth, 0);
+      }
+    },
+    /*****
+     * @title
+     * 1. eth 控制proxy address 转sol,先判断是否授权
+     * 2. 根据 转账金额进行判断，如小于本链余额，则需要先转本链，大于本链余额+跨链
+     * 3. 如果本链余额足够，则直接发送交易
+     * 4. 如果本链余额不足，则需要先转本链+跨链，若本链余额不足，则直接跨桥
+     *****/
+    checkApproveEthSolToSol = async (amount: number, to: string) => {
+      if (currentBalance_sol < amount) {
+        // 如果本链余额为0.01，则需要先转链
+        //如果本链余额不足，则需要先转本链+跨链
+        if (await CheckApproveTransfer()) {
+          if (currentBalance_sol <= STATIC_AMOUNT) {
+            // 如果sol本链余额不足，则直接跨桥
+            ethTransferToSolBalanceToSolana(amount, to);
+          } else {
+            // 如果sol本链余额足够，则发本链+跨链
+            ethereumTransferEthBalanceToSolana({
+              to,
+              bridgeBalance: amount,
+              evmAddress,
+              currentBalance: currentBalance_sol,
+            });
+          }
+        } else {
+          ethTransferToSolApprove(amount, to, currentBalance_sol);
+        }
+      } else {
+        if (await CheckApproveTransfer()) {
+          //如果本链余额足够，则直接发送交易
+          ethereumTransferEthBalanceToSolana({
+            to,
+            bridgeBalance: amount,
+            evmAddress,
+            currentBalance: currentBalance_sol,
+          });
+        } else {
+          ethTransferCheckApprove(to, amount, currentBalance_sol, 1);
+        }
+      }
+    };
 
   // 提交表单
   const onSubmit = (data: {
-    amount: number
-    fromChain: string
-    network: string
-    address: string
+    amount: number;
+    fromChain: string;
+    network: string;
+    address: string;
   }) => {
-    console.log('Form Data:', data)
-    const { amount, fromChain, network, address } = data
-    setLoadingState(true)
+    console.log("Form Data:", data);
+    const { amount, fromChain, network, address } = data;
+    const { ethSolBalance = 0, solUsdcBalance = 0 }: any = accountBalance;
+    console.log("currentBalance_sol000---", currentBalance_sol);
+    setLoadingState(true);
     // 全局判断 是solana还是evm
-    const globalChainType = chainType == SupportChain.Ethereum
-    const currentChainFrom = fromChain === CurrencyEnum.SOLANA
-    const currentChainTo = network === CurrencyEnum.ETHEREUM
+    // 3. 生成转账金额
+    // 逻辑：如果是本链到本链，优先转本链；
+    //      如果是本链到他链，优先转他链，再转本链
+    const globalChainType = chainType == SupportChain.Ethereum;
+    const currentChainFrom = fromChain === CurrencyEnum.SOLANA;
+    const currentChainTo = network === CurrencyEnum.ETHEREUM;
     if (globalChainType) {
-      console.log('跨链转账--ETH')
+      console.log("跨链转账--ETH");
       if (fromChain === CurrencyEnum.ETHEREUM && currentChainTo) {
-        console.log('本链转账--ETH---ETH')
-        ethTransferToEvm(amount, address)
+        console.log("本链转账--ETH---ETH");
+        ethTransferToEvm(amount, address);
       } else if (currentChainFrom && currentChainTo) {
-        console.log('本链转账--ETH-wsol->wsol')
-        ethTransferToWsol(amount, address)
+        console.log("本链转账--ETH-wsol->wsol");
+        // 首先要判断 sol地址的sol余额，是否不足？如果不足，则需要先转本链
+        console.log(
+          "跨链转账--SOL----currentBalance_sol < 0.01---",
+          ethSolBalance <= STATIC_AMOUNT
+        );
+        if (amount > ethSolBalance) {
+          console.log("跨链转账--SOL-如果wsol余额--少于0.01");
+          // 要检查是否有approve，没有就先执行approve后再调用ethereumCoontrollSolBalanceToEth
+          checkApproveEthToSol(amount, address);
+        } else {
+          //   本链 发送EVM转账 wsol -> wsol
+          ethereumTransferSolBalanceToEth({
+            to: address,
+            balance: amount,
+          });
+        }
       } else if (
         (fromChain === CurrencyEnum.USDT && currentChainTo) ||
         (fromChain === CurrencyEnum.USDC && currentChainTo)
       ) {
-        console.log('当前ETH转账支持USDT和USDC')
-        ethTransferToUsdt(amount, address, fromChain)
+        console.log("当前ETH转账支持USDT和USDC");
+        ethTransferToUsdt(amount, address, fromChain);
       } else if (
         fromChain === CurrencyEnum.SOLANA &&
         network === CurrencyEnum.SOLANA
       ) {
-        console.log('跨链转账--SOL')
-        console.log('currentBalance_sol', currentBalance_sol)
-        if (currentBalance_sol == 0.01) {// 如果本链余额为0.01，则需要先转链
-          //如果本链余额不足，则需要先转本链+跨链
-          ethTransferToSol(amount, address)
-        } else {
-          //如果本链余额足够，则直接发送交易
-          ethereumTransferEthBalanceToSolana({
-            to: address,
-            bridgeBalance: amount,
-            evmAddress,
-            currentBalance: currentBalance_sol
-          })
-        }
-
+        console.log("跨链转账--SOL");
+        console.log("currentBalance_sol", currentBalance_sol);
+        checkApproveEthSolToSol(amount, address);
       }
     } else {
-      console.log('本链转账--SOL---network---', network)
+      console.log("本链转账--SOL---network---", network);
       if (currentChainFrom && network === CurrencyEnum.SOLANA) {
-        console.log('本链转账--SOL')
-        SolanaTransferToSol(amount, address)
+        console.log("本链转账--SOL");
+        console.log("本链转账-currentBalance-", currentBalance);
+        console.log("本链转账-currentBalance_sol-SOL", currentBalance_sol);
+        const aParsed = parseUnits(amount.toString(), 9); // 将数字提升到 9 位精度
+        const bParsed = parseUnits(currentBalance_sol.toString(), 9);
+
+        const isFixed = formatUnits(aParsed - bParsed, 9);
+        console.log("本链转账---isFixed", isFixed);
+
+        if (Number(isFixed) > 0) {
+          solanaTransferSolBalanceToSolana({
+            to: address,
+            balance: currentBalance_sol - STATIC_AMOUNT,
+            bridgeBalance: Number(isFixed),
+          });
+        } else {
+          SolanaTransferToSol(amount, address);
+        }
       } else if (currentChainFrom && network === CurrencyEnum.ETHEREUM) {
-        console.log('跨链转账--ETH')
-        solanaToEth(amount, address)
-      } else if (fromChain === CurrencyEnum.USDC && network === CurrencyEnum.SOLANA) {
-        console.log('本链转账--USDC')
-        solanaTransferSplBalanceToSolana({
-          toPubkey: new PublicKey(address),
+        console.log("跨链转账--ETH");
+        solanaToEth(amount, address);
+      } else if (fromChain === CurrencyEnum.ETHEREUM && currentChainTo) {
+        console.log("跨链转账-操控eth账户转-ETH------");
+        solanaTransferEthBalanceToEvm({
+          to: address,
+          bridgeBalance: amount,
+        });
+      } else if (
+        fromChain === CurrencyEnum.USDC &&
+        network === CurrencyEnum.SOLANA
+      ) {
+        //暂时不支持sol usdt
+        console.log("本链转账--USDC");
+        if (amount <= solUsdcBalance) {
+          solanaTransferSplBalanceToSolana({
+            toPubkey: new PublicKey(address),
+            balance: amount,
+          });
+        } else {
+          console.log("🈷️本链余额不足，则需要先转本链+跨链");
+          toast.error("Balance is not enough. ");
+          setLoadingState(false);
+        }
+      } else if (fromChain === CurrencyEnum.USDT && currentChainTo) {
+        console.log("本链转账--USDT");
+        solanaTransferSplBalanceToEvm({
+          token: CurrencyEnum.USDT,
+          to: address,
           balance: amount,
-        })
+        });
+      } else if (fromChain === CurrencyEnum.USDC && currentChainTo) {
+        console.log("本链转账--USDC");
+
+        JudgingUsdcBalance(address, amount);
       }
     }
-  }
+  };
 
-  const { sendTransaction: solanaSendTransaction } = useWallet()
-  const { connection } = useConnection()
+  const JudgingUsdcBalance = (to: string, balance: number) => {
+    const { ethUsdcBalance = 0 }: any = accountBalance;
+    if (balance <= ethUsdcBalance) {
+      solanaTransferSplBalanceToEvm({
+        token: CurrencyEnum.USDC,
+        to,
+        balance,
+      });
+    } else {
+      // 如果本链余额不足，则需要先转本链+跨链
+      console.log("🈷️本链余额不足，则需要先转本链+跨链");
+      toast.error("Balance is not enough. ");
+      setLoadingState(false);
+    }
+  };
+
+  const { sendTransaction: solanaSendTransaction } = useWallet();
+  const { connection } = useConnection();
   // 发送Solana Wormhole交易 - 完成
   const {
+    solanaTransferSplBalanceToEvm,
     sendSolanaWormholeTransaction,
     approveWSol,
     SolanaTransferToSol,
+    solanaTransferSolBalanceToSolana,
     solanaTransferSplBalanceToSolana,
-  } = WormHoleTransferFunc()
+    solanaTransferEthBalanceToEvm,
+  } = WormHoleTransferFunc();
 
-  const [loadingState, setLoadingState] = useState(false)
-  const watchAmount = watch('amount', 0)
-  const watchFromChain = watch('fromChain', initFromChain)
+  const [loadingState, setLoadingState] = useState(false);
+  const watchAmount = watch("amount", 0);
+  const watchFromChain = watch("fromChain", initFromChain);
   // 计算当前余额
   const currentBalance = useMemo(() => {
-    if (!accountBalance) return 0
+    if (!accountBalance) return 0;
     const {
       solBalance = 0,
       solUsdtBalance = 0,
@@ -380,36 +510,38 @@ const TransferForm = ({
       ethUsdcBalance = 0,
       ethSolBalance = 0,
       solEthBalance = 0,
-    }: any = accountBalance
+    }: any = accountBalance;
     if (watchFromChain === CurrencyEnum.SOLANA) {
-      return solBalance + ethSolBalance
+      return solBalance + ethSolBalance;
     } else if (watchFromChain === CurrencyEnum.ETHEREUM) {
-      return ethBalance + solEthBalance
+      return ethBalance + solEthBalance;
     } else if (watchFromChain === CurrencyEnum.USDT) {
-      return solUsdtBalance + ethUsdtBalance
+      return solUsdtBalance + ethUsdtBalance;
     } else if (watchFromChain === CurrencyEnum.USDC) {
-      return solUsdcBalance + ethUsdcBalance
+      return solUsdcBalance + ethUsdcBalance;
     }
-  }, [watchFromChain, accountBalance])
+  }, [watchFromChain, accountBalance]);
 
   // 计算当前余额 sol
   const currentBalance_sol = useMemo(() => {
-    if (!accountBalance) return 0
-    const {
-      solBalance = 0,
-    }: any = accountBalance
-    return solBalance
-  }, [accountBalance])
-
-
+    if (!accountBalance) return 0;
+    const { solBalance = 0 }: any = accountBalance;
+    return solBalance;
+  }, [accountBalance]);
+  // 计算当前余额 eth的sol
+  const currentSolBalance_Eth = useMemo(() => {
+    if (!accountBalance) return 0;
+    const { ethSolBalance = 0 }: any = accountBalance;
+    return ethSolBalance;
+  }, [accountBalance]);
 
   return (
     <div className="gap-y-4 mt-2">
       <form
         onSubmit={handleSubmit(onSubmit)}
         onReset={() => {
-          console.log('onReset')
-          setIsOpen(false)
+          console.log("onReset");
+          setIsOpen(false);
         }}
       >
         {/* Sending Asset */}
@@ -420,32 +552,29 @@ const TransferForm = ({
               fromChain
             </Label>
             <Select
-              defaultValue={watch('fromChain')}
-              onValueChange={(value: string) => setValue('fromChain', value)}
-              {...register('fromChain', { required: true })}
+              defaultValue={watch("fromChain")}
+              onValueChange={(value: string) => setValue("fromChain", value)}
+              {...register("fromChain", { required: true })}
             >
               <SelectTrigger className="flex-1 py-6 border-0 focus:ring-0 focus:ring-offset-0 focus:outline-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-
-                {
-                  SetFromChainLIst.map(item =>
-                    <SelectItem value={item.value}>
-                      <div className="flex gap-x-3 items-center">
-                        <div className="hidden xl:block p-2 rounded-full bg-secondary">
-                          <Image
-                            src={item.iconUrl}
-                            alt={item.text}
-                            width={18}
-                            height={18}
-                          />
-                        </div>
-                        <span className="text-lg">{item.name}</span>
+                {SetFromChainLIst.map((item) => (
+                  <SelectItem value={item.value}>
+                    <div className="flex gap-x-3 items-center">
+                      <div className="hidden xl:block p-2 rounded-full bg-secondary">
+                        <Image
+                          src={item.iconUrl}
+                          alt={item.text}
+                          width={18}
+                          height={18}
+                        />
                       </div>
-                    </SelectItem>
-                  )
-                }
+                      <span className="text-lg">{item.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <div className="flex-1 border-l border-gray-500 gap-x-1 flex justify-end items-center">
@@ -455,12 +584,14 @@ const TransferForm = ({
                 className="text-md text-right pr-1 border-0 focus:border-0 focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 step="any"
                 type="number"
-                {...register('amount', {
+                min={0}
+                maxLength={10}
+                max={currentBalance}
+                {...register("amount", {
                   required: true,
-                  min: 0,
-                  max: currentBalance,
                   validate: (value: any) =>
-                    value <= currentBalance || 'Insufficient balance',
+                    (value > 0 && value <= currentBalance) ||
+                    "Amount must be greater than 0 and within balance",
                 })}
               />
               <Label className="text-gray-500 text-md" htmlFor="amount">
@@ -477,39 +608,37 @@ const TransferForm = ({
             )}
             {errors.amount && (
               <span className="text-red-500 float-right">
-                {errors.amount.type === 'max' ||
-                  errors.amount.type === 'validate'
-                  ? 'Insufficient balance'
-                  : 'Please enter a valid amount'}
+                {errors.amount.type === "max" ||
+                errors.amount.type === "validate"
+                  ? "Insufficient balance"
+                  : "Please enter a valid amount"}
               </span>
             )}
           </div>
           <div className="flex justify-end gap-x-3 text-sm text-gray-500">
             <span>
-              {'Balance: ' +
+              {"Balance: " +
                 currentBalance +
-                ' ' +
-                watchFromChain.toUpperCase()}
+                " " +
+                watchFromChain?.toUpperCase()}
             </span>
             <span
               className="text-primary cursor-pointer"
-              onClick={() => setValue('amount', currentBalance)}
+              onClick={() => setValue("amount", currentBalance)}
             >
               Max
             </span>
           </div>
         </div>
 
-
-
         <div className="flex flex-col gap-y-2">
           <Label htmlFor="network" className="text-gray-500">
             To
           </Label>
           <Select
-            defaultValue={watch('network')}
-            onValueChange={(value: string) => setValue('network', value)}
-            {...register('network', { required: true })}
+            defaultValue={watch("network")}
+            onValueChange={(value: string) => setValue("network", value)}
+            {...register("network", { required: true })}
           >
             <SelectTrigger className="w-full py-6">
               <SelectValue />
@@ -518,14 +647,9 @@ const TransferForm = ({
               <SelectItem value={CurrencyEnum.SOLANA}>
                 <div className="flex gap-x-3 items-center">
                   <div className="hidden xl:block p-2 rounded-full bg-secondary">
-                    <Image
-                      src="/solana.svg"
-                      alt="sol"
-                      width={16}
-                      height={16}
-                    />
+                    <Image src="/solana.svg" alt="sol" width={16} height={16} />
                   </div>
-                  <span className="text-lg">SOLANA</span>
+                  <span className="text-lg">Solana Devnet</span>
                 </div>
               </SelectItem>
               <SelectItem value={CurrencyEnum.ETHEREUM}>
@@ -538,12 +662,11 @@ const TransferForm = ({
                       height={16}
                     />
                   </div>
-                  <span className="text-lg">ETHEREUM</span>
+                  <span className="text-lg">Ethereum Sepolia</span>
                 </div>
               </SelectItem>
             </SelectContent>
           </Select>
-
 
           {errors.network && (
             <span className="text-red-500 float-right">
@@ -561,17 +684,17 @@ const TransferForm = ({
             id="address"
             placeholder="Input destination address"
             className="py-6"
-            {...register('address', {
+            {...register("address", {
               required: true,
               validate: (value: any) => {
-                const isSolana = watch('network') === 'sol';
-                const isEvm = watch('network') === 'eth';
+                const isSolana = watch("network") === "sol";
+                const isEvm = watch("network") === "eth";
 
                 if (isSolana) {
                   // 这里添加Solana地址的校验逻辑
-                  return isSolanaAddress(value) || 'Invalid Solana address';
+                  return isSolanaAddress(value) || "Invalid Solana address";
                 } else if (isEvm) {
-                  return isAddress(value) || 'Invalid EVM address';
+                  return isAddress(value) || "Invalid EVM address";
                 }
                 return false;
               },
@@ -623,21 +746,27 @@ const TransferForm = ({
           <Button
             type="reset"
             className="bg-gray-500 text-white px-4 py-2 rounded-md"
-          // disabled={loadingState}
+            // disabled={loadingState}
           >
             Cancel
           </Button>
+
           <Button
             type="submit"
             className="bg-primary text-white px-4 py-2 rounded-md"
-            disabled={loadingState}
+            disabled={
+              loadingState ||
+              (watchFromChain === CurrencyEnum.USDT &&
+                watch("network") === CurrencyEnum.SOLANA)
+            }
           >
-            {loadingState ? <Loading className="w-4 h-4 mr-1" /> : 'Send'}
+            {loadingState ? <Loading className="w-4 h-4 mr-1" /> : "Send"}
           </Button>
         </div>
       </form>
+      {/* <Button onClick={() => approveWSol()}>Approve01</Button> */}
     </div>
-  )
-}
+  );
+};
 
-export default TransferForm
+export default TransferForm;

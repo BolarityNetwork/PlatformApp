@@ -25,12 +25,45 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { formatEther, formatUnits, erc20Abi } from "viem";
-import { CurrencyEnum, EVM_USDC_CONTRACT, EVM_USDT_CONTRACT, EVM_WSOL_CONTRACT } from "@/config";
+import {
+  CurrencyEnum,
+  EVM_USDC_CONTRACT,
+  EVM_USDT_CONTRACT,
+  EVM_WSOL_CONTRACT,
+  SupportChain,
+} from "@/config";
 
 import { BalanceData } from "./atoms";
 import { publicClient } from "@/config/wagmi";
 
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+
+const endpoint = `${process.env.NEXT_PUBLIC_RPC_URL}`;
+
+// eth钱包登陆时。获取代理sol地址的余额代币
+async function ethGetSPlTOkenAccount(address: string) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getTokenAccountsByOwner",
+      params: [
+        address,
+        {
+          programId: TOKEN_PROGRAM_ID,
+        },
+        {
+          encoding: "jsonParsed",
+        },
+      ],
+    }),
+  });
+  return await response.json();
+}
 
 export const getSolTokenMintAddress = (
   tokenSymbol: string,
@@ -54,7 +87,8 @@ export const useGetBalance = () => {
   const { connection } = useConnection();
   const { cluster } = useCluster();
 
-  const { evmAddress, solAddress } = useBolarityWalletProvider();
+  const { evmAddress, solAddress, ChainType } = useBolarityWalletProvider();
+  const globalChainType = ChainType == SupportChain.Ethereum;
 
   return useQuery({
     queryKey: [
@@ -75,8 +109,6 @@ export const useGetBalance = () => {
       };
 
       if (solAddress) {
-
-
         const solPublicKey = new PublicKey(solAddress);
         // 1. Get SOL balance
         try {
@@ -89,7 +121,10 @@ export const useGetBalance = () => {
         }
 
         // 2. Get SOL -> USDC balance
-        const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDC, cluster.name); // Solana USDC Mint address
+        const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(
+          CurrencyEnum.USDC,
+          cluster.name
+        ); // Solana USDC Mint address
         let solUsdcAddress;
         try {
           solUsdcAddress = await getAssociatedTokenAddress(
@@ -119,15 +154,35 @@ export const useGetBalance = () => {
         // const solUsdtAccount = await getAccount(connection, solUsdtAddress);
         // if (solUsdtAccount) {
         //   data.solUsdtBalance = Number(solUsdtAccount.amount / BigInt(1e6));
-        // }   
+        // }
       }
 
-
+      // 为什么要用这方法？因为eth代理 sol地址的时候，需要用ethGetSPlTOkenAccount
+      if (globalChainType && evmAddress && solAddress) {
+        const resUsdc = await ethGetSPlTOkenAccount(solAddress);
+        console.log("resUsdc:", resUsdc);
+        if (
+          resUsdc &&
+          resUsdc.result &&
+          resUsdc.result.value &&
+          resUsdc.result.value.length > 0
+        ) {
+          const usdcAddressSpl = resUsdc.result.value.filter(
+            (item: any) => item.account.data.parsed.info.owner === solAddress
+          )[0].account.data.parsed.info.tokenAmount.uiAmount;
+          console.log("usdcAddressSpl:", usdcAddressSpl);
+          if (usdcAddressSpl) {
+            data.solUsdcBalance = usdcAddressSpl;
+          }
+        }
+      }
 
       if (isValidEvmAddress(evmAddress) && publicClient) {
         // 1. Get ETH balance
         try {
-          const ethBalance = await publicClient.getBalance({ address: evmAddress as `0x${string}` });
+          const ethBalance = await publicClient.getBalance({
+            address: evmAddress as `0x${string}`,
+          });
           if (ethBalance) {
             data.ethBalance = Number(formatEther(ethBalance));
           }
@@ -140,7 +195,7 @@ export const useGetBalance = () => {
           const wsolBalance = await publicClient.readContract({
             address: EVM_WSOL_CONTRACT as `0x${string}`,
             abi: erc20Abi,
-            functionName: 'balanceOf',
+            functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
           if (wsolBalance) {
@@ -163,11 +218,13 @@ export const useGetBalance = () => {
           const ethUsdcBalance = await publicClient.readContract({
             address: EVM_USDC_CONTRACT,
             abi: erc20Abi,
-            functionName: 'balanceOf',
+            functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
           if (ethUsdcBalance) {
-            data.ethUsdcBalance = Number(formatUnits(ethUsdcBalance, ethUsdcDecimals));
+            data.ethUsdcBalance = Number(
+              formatUnits(ethUsdcBalance, ethUsdcDecimals)
+            );
           }
         } catch (e) {
           console.log("get ETH USDC Balance error:", e);
@@ -179,11 +236,13 @@ export const useGetBalance = () => {
           const ethUsdtBalance = await publicClient.readContract({
             address: EVM_USDT_CONTRACT,
             abi: erc20Abi,
-            functionName: 'balanceOf',
+            functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
           if (ethUsdtBalance) {
-            data.ethUsdtBalance = Number(formatUnits(ethUsdtBalance, ethUsdtDecimals));
+            data.ethUsdtBalance = Number(
+              formatUnits(ethUsdtBalance, ethUsdtDecimals)
+            );
           }
         } catch (e) {
           console.log("get ETH USDT Balance error:", e);
@@ -196,12 +255,6 @@ export const useGetBalance = () => {
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: false,
   });
-};
-
-export const useAccountBalance = () => {
-  const { isLoading, refetch, error, data } = useGetBalance();
-
-  return { accountBalance: data, isLoading, refetch, error };
 };
 
 export const useTransferSol = ({

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/table";
 import { QrCodeModal } from "@/components/widgets/account-ui/index";
 
-
 import {
   DialogHeader,
   DialogContent,
@@ -27,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
+import { toast } from "sonner";
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { RefreshCcwIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -46,7 +45,6 @@ import { cn } from "@/lib/utils";
 
 import { Asset, TableHeaderArr } from "./portfolio-data";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
-
 
 const AssetsModal = ({
   open = false,
@@ -171,7 +169,6 @@ const AssetsModal = ({
 
 const MuitlAssetRow = ({
   assets,
-
   onSend,
   onReceive,
 }: {
@@ -305,7 +302,6 @@ export const AssetsTable = () => {
   const [solList, setSolList] = useState<Asset[]>([]);
   const [ethList, setEthList] = useState<Asset[]>([]);
   const [usdtList, setUsdtList] = useState<Asset[]>([]);
-  const [usdcList, setUsdcList] = useState<Asset[]>([]);
 
   const {
     isLoading,
@@ -314,15 +310,47 @@ export const AssetsTable = () => {
   } = useGetBalance();
 
   const { feedsData } = useFeedsData();
+  const usdc_arr = useMemo(() => {
+    if (!ChainType || !feedsData || !accountBalance) return [];
+    const { solUsdcBalance, ethUsdcBalance }: any = accountBalance;
+    let usdcListArr = [];
+    if (solUsdcBalance > 0) {
+      const solUsdcArr = {
+        icon: "/usdc.png",
+        symbol: CurrencyEnum.USDC,
+        price: feedsData.usdc.formattedPrice,
+        change24h: 0,
+        value: solUsdcBalance * feedsData.usdc.price,
+        amount: solUsdcBalance,
+        network: "Solana",
+        networkIcon: <SiSolana size={24} />,
+      };
+
+      usdcListArr.push(solUsdcArr);
+    }
+    if (ethUsdcBalance > 0) {
+      let ethUsdcArr = {
+        icon: "/usdc.png",
+        symbol: CurrencyEnum.USDC,
+        price: feedsData.usdc.formattedPrice,
+        change24h: 0,
+        value: ethUsdcBalance * feedsData.usdc.price,
+        amount: ethUsdcBalance,
+        network: "Ethereum",
+        networkIcon: <FaEthereum size={24} />,
+      };
+      usdcListArr.push(ethUsdcArr);
+    }
+
+    return usdcListArr;
+  }, [accountBalance, feedsData, ChainType]);
 
   useEffect(() => {
-
     if (!ChainType) {
-
       setSolList([]);
       setEthList([]);
       setUsdtList([]);
-      setUsdcList([]);
+
       return;
     }
     if (!feedsData || !accountBalance) {
@@ -333,13 +361,11 @@ export const AssetsTable = () => {
       solBalance,
       solEthBalance,
       solUsdtBalance,
-      solUsdcBalance,
       ethBalance,
       ethSolBalance,
       ethUsdtBalance,
-      ethUsdcBalance,
     }: any = accountBalance;
-
+    console.log("solUsdcBalance----", feedsData.usdc);
     console.log("solBalance", accountBalance);
 
     if (ChainType === SupportChain.Solana || solAddress) {
@@ -352,7 +378,7 @@ export const AssetsTable = () => {
           value: solBalance * feedsData.sol.price,
           amount: solBalance,
           network: "Solana",
-          networkIcon: <SiSolana className="h-5 w-5" />,
+          networkIcon: <SiSolana size={24} />,
         },
       ]);
     }
@@ -366,14 +392,17 @@ export const AssetsTable = () => {
         value: ethSolBalance * feedsData.sol.price,
         amount: ethSolBalance,
         network: "Ethereum",
-        networkIcon: <FaEthereum className="h-5 w-5" />,
+        networkIcon: <FaEthereum size={24} />,
       };
 
-      setSolList(prevList => [...prevList, ethSolArr]);
+      if (ChainType === SupportChain.Solana || solAddress) {
+        setSolList((prevList: any) => [...prevList, ethSolArr]);
+      } else {
+        setSolList([ethSolArr]);
+      }
     }
 
     if (solEthBalance > 0) {
-
       const solEthArr = [
         {
           icon: "/ethereum.svg",
@@ -383,13 +412,11 @@ export const AssetsTable = () => {
           value: solEthBalance * feedsData.eth.price,
           amount: solEthBalance,
           network: "Solana",
-          networkIcon: <SiSolana className="h-5 w-5" />,
-        }
-      ]
-      setEthList(new Set([...ethList, ...solEthArr]))
+          networkIcon: <SiSolana size={24} />,
+        },
+      ];
+      setEthList(new Set([...ethList, ...solEthArr]));
     }
-
-
 
     if (solUsdtBalance > 0) {
       setUsdtList([
@@ -401,22 +428,7 @@ export const AssetsTable = () => {
           value: solUsdtBalance * feedsData.usdt.price,
           amount: solUsdtBalance,
           network: "Solana",
-          networkIcon: <SiSolana className="h-5 w-5" />,
-        },
-      ]);
-    }
-
-    if (solUsdcBalance > 0) {
-      setUsdcList([
-        {
-          icon: "/usdc.png",
-          symbol: CurrencyEnum.USDC,
-          price: feedsData.usdc.formattedPrice,
-          change24h: 0,
-          value: solUsdcBalance * feedsData.usdc.price,
-          amount: solUsdcBalance,
-          network: "Solana",
-          networkIcon: <SiSolana className="h-5 w-5" />,
+          networkIcon: <SiSolana size={24} />,
         },
       ]);
     }
@@ -431,7 +443,7 @@ export const AssetsTable = () => {
           value: ethBalance * feedsData.eth.price,
           amount: ethBalance,
           network: "Ethereum",
-          networkIcon: <FaEthereum className="h-5 w-5" />,
+          networkIcon: <FaEthereum size={24} />,
         },
       ]);
     }
@@ -447,34 +459,16 @@ export const AssetsTable = () => {
           value: ethUsdtBalance * feedsData.usdt.price,
           amount: ethUsdtBalance,
           network: "Ethereum",
-          networkIcon: <FaEthereum className="h-5 w-5" />,
-        },
-      ]);
-    }
-
-    if (ethUsdcBalance > 0) {
-      setUsdcList([
-        {
-          icon: "/usdc.png",
-          symbol: CurrencyEnum.USDC,
-          price: feedsData.usdc.formattedPrice,
-          change24h: 0,
-          value: ethUsdcBalance * feedsData.usdc.price,
-          amount: ethUsdcBalance,
-          network: "Ethereum",
-          networkIcon: <FaEthereum className="h-5 w-5" />,
+          networkIcon: <FaEthereum size={24} />,
         },
       ]);
     }
   }, [accountBalance, feedsData, ChainType]);
 
-
-
-
   const { setIsOpen, setInitFromChain } = useWidgetsProvider();
 
   const [isReceive, setIsReceive] = useState(false);
-  const [isReceiveAddress, setIsReceiveAddress] = useState('');
+  // const [isReceiveAddress, setIsReceiveAddress] = useState("");
   return (
     <>
       <div className="flex justify-between items-center">
@@ -490,7 +484,6 @@ export const AssetsTable = () => {
           <RefreshCcwIcon className="h-5 w-5 text-primary" />
         </Button>
       </div>
-
 
       <Table className="mt-0 md:mt-4">
         <TableHeader>
@@ -509,67 +502,93 @@ export const AssetsTable = () => {
             {/* <TableHead className="p-3"></TableHead> */}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableRow>
-              <TableCell className="px-0 py-2" colSpan={6}>
-                <Skeleton className="h-12" />
-              </TableCell>
-            </TableRow>
-          ) : (
-            <>
-              {/* SOL Balance */}
-              <MuitlAssetRow
-                assets={solList}
-                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.SOLANA) }}
-                onReceive={() => {
-                  console.log('onReceive')
-                  setIsReceive(true);
-                  setIsReceiveAddress(solAddress);
-                }}
-              />
-              {/* ETH Balance */}
-              <MuitlAssetRow
-                assets={ethList}
-                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.ETHEREUM) }}
-                onReceive={() => {
-                  console.log('onReceive')
-                  setIsReceive(true);
-                  setIsReceiveAddress(evmAddress);
-                }}
-              />
-              {/* USDT Balance */}
-              <MuitlAssetRow
-                assets={usdtList}
-                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.USDT) }}
-                onReceive={() => {
-                  // onReceiveModal(usdtList[0]);
-                }}
-              />
-              {/* USDC Balance */}
-              <MuitlAssetRow
-                assets={usdcList}
-                onSend={() => { setIsOpen(true); setInitFromChain(CurrencyEnum.USDC) }}
-                onReceive={() => {
-                  // onReceiveModal(usdtList[0]);
-                }}
-              />
-            </>
-          )}
-        </TableBody>
+        {ChainType && (
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell className="px-0 py-2" colSpan={6}>
+                  <Skeleton className="h-12" />
+                </TableCell>
+              </TableRow>
+            ) : (
+              <>
+                {/* SOL Balance */}
+                <MuitlAssetRow
+                  assets={solList}
+                  onSend={() => {
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.SOLANA);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => {
+                    console.log("onReceive");
+                    setIsReceive(true);
+                    // setIsReceiveAddress(solAddress);
+                  }}
+                />
+                {/* ETH Balance */}
+                <MuitlAssetRow
+                  assets={ethList}
+                  onSend={() => {
+                    console.log("onSend000000");
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.ETHEREUM);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => {
+                    console.log("onReceive");
+                    setIsReceive(true);
+                    // setIsReceiveAddress(evmAddress);
+                  }}
+                />
+                {/* USDT Balance */}
+                <MuitlAssetRow
+                  assets={usdtList}
+                  onSend={() => {
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.USDT);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => setIsReceive(true)}
+                />
+                {/* USDC Balance */}
+                <MuitlAssetRow
+                  assets={usdc_arr}
+                  onSend={() => {
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.USDC);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => setIsReceive(true)}
+                />
+              </>
+            )}
+          </TableBody>
+        )}
       </Table>
 
-      {
-        ChainType &&
-        <QrCodeModal open={isReceive}
-          address={isReceiveAddress}
+      {ChainType && (
+        <QrCodeModal
+          open={isReceive}
           onOpenChange={(open) => {
             setIsReceive(open);
-            setIsReceiveAddress('');
           }}
+          address={evmAddress}
+          solAddress={solAddress}
         />
-      }
-
+      )}
     </>
   );
 };

@@ -15,13 +15,11 @@ const SendModal = ({
   solAddress,
   evmAddress,
 }: {
-
   accountBalance?: any;
   ChainType?: any;
   solAddress?: any;
   evmAddress?: any;
 }) => {
-
   const { setIsOpen, isOpen } = useWidgetsProvider();
   const onChange = (eopen: boolean) => {
     console.log("eopen", eopen);
@@ -30,14 +28,19 @@ const SendModal = ({
   console.log("form-----ChainType", ChainType);
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={onChange} >
+    <AlertDialog open={isOpen} onOpenChange={onChange}>
       <AlertDialogContent className="sm:max-w-m px-8">
         <AlertDialogTitle className="text-2xl font-semibold">
           Transfer
         </AlertDialogTitle>
-        {
-          solAddress && <TransferForm accountBalance={accountBalance} solPublicKey={solAddress} chainType={ChainType} evmAddress={evmAddress} />
-        }
+        {ChainType && (
+          <TransferForm
+            accountBalance={accountBalance}
+            solPublicKey={solAddress}
+            chainType={ChainType}
+            evmAddress={evmAddress}
+          />
+        )}
       </AlertDialogContent>
     </AlertDialog>
   );

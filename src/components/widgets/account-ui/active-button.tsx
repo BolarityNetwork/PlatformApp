@@ -6,7 +6,8 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 
 import { Button } from "@/components/ui/button";
 import { AtSign } from "lucide-react";
-import { toast } from "sonner";
+import LoadingSpinner from "@/components/ui/loading-spinner";
+
 import {
   getExplorerLink,
   getProvider,
@@ -25,13 +26,15 @@ import {
 import { encodeAbiParameters, toHex } from "viem";
 
 import { CONTRACTS } from "@certusone/wormhole-sdk";
-import { Loading } from "@/components/ui/loading";
+
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useFetchAddress } from "@/hooks/bolaryty/useFetchAddress";
 
 const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
   const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
 
   const { EvmRefreshProxyAddress } = useBolarityWalletProvider();
+  const { fetchProxyEvmAddress } = useFetchAddress();
 
   const { connection } = useConnection();
   const [refreshing, setRefreshing] = useState(false);
@@ -111,21 +114,32 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
         "confirmed"
       );
 
-      handleTransactionSuccess(
-        signature,
-        getExplorerLink("tx", signature, "devnet")
-      );
-
       // 需要刷新evm钱包地址
-      EvmRefreshProxyAddress();
+      refreshEvmAddress(signature);
     } catch (error) {
       handleError(error, "Failed to activate account");
       setRefreshing(false);
     } finally {
-      setRefreshing(false);
+      // setRefreshing(false);
     }
   };
 
+  const refreshEvmAddress = (signature: string) => {
+    const intervalId = setInterval(() => {
+      fetchProxyEvmAddress(solAddress).then((res) => {
+        if (res) {
+          clearInterval(intervalId);
+          EvmRefreshProxyAddress();
+          setRefreshing(false);
+
+          handleTransactionSuccess(
+            signature,
+            getExplorerLink("tx", signature, "devnet")
+          );
+        }
+      });
+    }, 1000);
+  };
   return (
     <Button
       variant="outline"
@@ -133,11 +147,7 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
       onClick={handleActiveAccount}
       disabled={refreshing}
     >
-      {refreshing ? (
-        <Loading className="h-4 w-4 mr-1" />
-      ) : (
-        <AtSign className="h-4 w-4 mr-1" />
-      )}
+      {refreshing ? <LoadingSpinner /> : <AtSign className="h-4 w-4 mr-1" />}
       Activate
     </Button>
   );
