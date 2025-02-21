@@ -16,7 +16,8 @@ const pages: { label: string; path: string }[] = [
   { label: "Portfolio", path: "/portfolio" },
   { label: "Vaults", path: "/vaults" },
   { label: "Dashboard", path: "/dashboard" },
-  { label: "AVS", path: "/avs" },
+  // { label: "AVS", path: "/avs" },
+  { label: "NCN", path: "/ncn" },
   { label: "Operator", path: "/operator" },
 ];
 
