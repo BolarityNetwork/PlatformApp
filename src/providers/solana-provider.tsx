@@ -1,23 +1,26 @@
 "use client";
-
+import React from "react";
 import {
   ConnectionProvider,
   useWallet,
   WalletProvider,
 } from "@solana/wallet-adapter-react";
-import { WalletError, WalletName } from "@solana/wallet-adapter-base";
-import { SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import {
-  PropsWithChildren,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+  WalletAdapterNetwork,
+  WalletError,
+  WalletName,
+} from "@solana/wallet-adapter-base";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+require("@solana/wallet-adapter-react-ui/styles.css");
+
 import {
-  toWalletAdapterNetwork,
-  useCluster,
-} from "@/providers/cluster-provider";
+  PhantomWalletAdapter,
+  SolflareWalletAdapter,
+  TorusWalletAdapter,
+  TrustWalletAdapter,
+} from "@solana/wallet-adapter-wallets";
+import { ReactNode, useCallback, useMemo } from "react";
+
 import {
   Dialog,
   DialogContent,
@@ -34,23 +37,14 @@ export const SolanaConnectModal = ({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConnected: (address: string, disconnect: () => void) => void;
+  onConnected: () => void;
 }) => {
   const { wallets, select, connect } = useWallet();
-  const [disabled, setDisabled] = useState(true);
 
-  useEffect(() => {
-    setDisabled(false);
-  }, []);
-
-  const handleConnect = useCallback(
-    async (walletName: WalletName) => {
-      await select(walletName);
-      await connect();
-      onConnected("", () => {});
-    },
-    [connect, onConnected, select]
-  );
+  const handleConnect = (walletName: WalletName) => {
+    select(walletName);
+    onConnected();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,7 +61,7 @@ export const SolanaConnectModal = ({
                   name={wallet.adapter.name}
                   iconUrl={wallet.adapter.icon}
                   onConnectRequest={() => handleConnect(wallet.adapter.name)}
-                  disabled={disabled}
+                // disabled={disabled}
                 />
               ))}
             </div>
@@ -78,34 +72,28 @@ export const SolanaConnectModal = ({
   );
 };
 
-export const SolanaProvider = (props: PropsWithChildren) => {
-  const { cluster } = useCluster();
-  const endpoint = useMemo(() => cluster.endpoint, [cluster]);
-
-  const wallets = useMemo(
-    () => [
-      // new PhantomWalletAdapter({
-      //   network: toWalletAdapterNetwork(cluster.network),
-      // }),
-      // new BitgetWalletAdapter({
-      //   network: toWalletAdapterNetwork(cluster.network),
-      // }),
-      new SolflareWalletAdapter({
-        network: toWalletAdapterNetwork(cluster.network),
-      }),
-    ],
-    [cluster]
-  );
+export function SolanaProvider({ children }: { children: React.ReactNode }) {
+  const endpoint = `${process.env.NEXT_PUBLIC_RPC_URL}`;
 
   const onError = useCallback((error: WalletError) => {
     console.error(error);
   }, []);
 
+  const network = WalletAdapterNetwork.Devnet;
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
+      new TorusWalletAdapter(),
+      new TrustWalletAdapter(),
+    ],
+    [network]
+  );
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} onError={onError} autoConnect={false}>
-        {props.children}
+      <WalletProvider wallets={wallets} onError={onError} autoConnect={true}>
+        <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
   );
-};
+}

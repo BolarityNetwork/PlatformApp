@@ -1,38 +1,12 @@
-"use client";
-
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
-import {
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-  Table,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { FaEthereum } from "react-icons/fa";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import { Label } from "@radix-ui/react-label";
-import { LoaderCircle, RefreshCcwIcon } from "lucide-react";
-import { useBolarity } from "@/hooks/useBolarity";
-import { useAccountBalance } from "@/hooks/useAccount";
+
+import { Loading } from "@/components/ui/loading";
+
 import {
   encodeAbiParameters,
   encodeFunctionData,
@@ -42,788 +16,357 @@ import {
   toBytes,
   toHex,
   bytesToHex,
-  formatUnits,
+  parseEther,
 } from "viem";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import {
-  getExplorerLink,
-  getProvider,
-  handleTransactionSuccess,
-  hexStringToUint8Array,
-  wait,
-  writeBigUint64LE,
-} from "@/lib/utils";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import * as anchor from "@coral-xyz/anchor";
-import { CONTRACTS } from "@certusone/wormhole-sdk";
-import { IDL } from "@/anchor/setup";
-import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import {
-  getPostMessageCpiAccounts,
-  getProgramSequenceTracker,
-} from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
+import { PublicKey } from "@solana/web3.js";
+import { getExplorerLink, handleTransactionSuccess } from "@/lib/utils";
 import { toast } from "sonner";
-import { publicClient } from "@/config/wagmi";
-import { useQuery } from "@tanstack/react-query";
+import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useDepositModal } from "./vaults-data";
+import {
+  AAVE_CONTRACT,
+  APPROVE_BASE_AMOUNT,
+  ETH_TO_STETH_STAKING,
+  EVM_USDT_CONTRACT,
+  PROXY_LIDO_CONTRACT_ADDRESS,
+  SupportChain,
+} from "@/config";
+import { useWriteContract } from "wagmi";
 
-const usdtContractAddress = "0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0";
-const aaveContractAddress = "0x6ae43d3271ff6888e7fc43fd7321a503ff738951";
-const aaveABI = [
-  {
-    inputs: [
-      {
-        internalType: "contract IPoolAddressesProvider",
-        name: "provider",
-        type: "address",
-      },
-      { internalType: "address", name: "user", type: "address" },
-    ],
-    name: "getUserReservesData",
-    outputs: [
-      {
-        components: [
-          { internalType: "address", name: "underlyingAsset", type: "address" },
-          {
-            internalType: "uint256",
-            name: "scaledATokenBalance",
-            type: "uint256",
-          },
-          {
-            internalType: "bool",
-            name: "usageAsCollateralEnabledOnUser",
-            type: "bool",
-          },
-          {
-            internalType: "uint256",
-            name: "stableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "scaledVariableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "principalStableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableBorrowLastUpdateTimestamp",
-            type: "uint256",
-          },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.UserReserveData[]",
-        name: "",
-        type: "tuple[]",
-      },
-      { internalType: "uint8", name: "", type: "uint8" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "contract IPoolAddressesProvider",
-        name: "provider",
-        type: "address",
-      },
-    ],
-    name: "getReservesData",
-    outputs: [
-      {
-        components: [
-          { internalType: "address", name: "underlyingAsset", type: "address" },
-          { internalType: "string", name: "name", type: "string" },
-          { internalType: "string", name: "symbol", type: "string" },
-          { internalType: "uint256", name: "decimals", type: "uint256" },
-          {
-            internalType: "uint256",
-            name: "baseLTVasCollateral",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "reserveLiquidationThreshold",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "reserveLiquidationBonus",
-            type: "uint256",
-          },
-          { internalType: "uint256", name: "reserveFactor", type: "uint256" },
-          {
-            internalType: "bool",
-            name: "usageAsCollateralEnabled",
-            type: "bool",
-          },
-          { internalType: "bool", name: "borrowingEnabled", type: "bool" },
-          {
-            internalType: "bool",
-            name: "stableBorrowRateEnabled",
-            type: "bool",
-          },
-          { internalType: "bool", name: "isActive", type: "bool" },
-          { internalType: "bool", name: "isFrozen", type: "bool" },
-          { internalType: "uint128", name: "liquidityIndex", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "variableBorrowIndex",
-            type: "uint128",
-          },
-          { internalType: "uint128", name: "liquidityRate", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "variableBorrowRate",
-            type: "uint128",
-          },
-          {
-            internalType: "uint128",
-            name: "stableBorrowRate",
-            type: "uint128",
-          },
-          {
-            internalType: "uint40",
-            name: "lastUpdateTimestamp",
-            type: "uint40",
-          },
-          { internalType: "address", name: "aTokenAddress", type: "address" },
-          {
-            internalType: "address",
-            name: "stableDebtTokenAddress",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "variableDebtTokenAddress",
-            type: "address",
-          },
-          {
-            internalType: "address",
-            name: "interestRateStrategyAddress",
-            type: "address",
-          },
-          {
-            internalType: "uint256",
-            name: "availableLiquidity",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "totalPrincipalStableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "averageStableRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableDebtLastUpdateTimestamp",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "totalScaledVariableDebt",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "priceInMarketReferenceCurrency",
-            type: "uint256",
-          },
-          { internalType: "address", name: "priceOracle", type: "address" },
-          {
-            internalType: "uint256",
-            name: "variableRateSlope1",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "variableRateSlope2",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableRateSlope1",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "stableRateSlope2",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "baseStableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "baseVariableBorrowRate",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "optimalUsageRatio",
-            type: "uint256",
-          },
-          { internalType: "bool", name: "isPaused", type: "bool" },
-          { internalType: "bool", name: "isSiloedBorrowing", type: "bool" },
-          {
-            internalType: "uint128",
-            name: "accruedToTreasury",
-            type: "uint128",
-          },
-          { internalType: "uint128", name: "unbacked", type: "uint128" },
-          {
-            internalType: "uint128",
-            name: "isolationModeTotalDebt",
-            type: "uint128",
-          },
-          { internalType: "bool", name: "flashLoanEnabled", type: "bool" },
-          { internalType: "uint256", name: "debtCeiling", type: "uint256" },
-          {
-            internalType: "uint256",
-            name: "debtCeilingDecimals",
-            type: "uint256",
-          },
-          { internalType: "uint8", name: "eModeCategoryId", type: "uint8" },
-          { internalType: "uint256", name: "borrowCap", type: "uint256" },
-          { internalType: "uint256", name: "supplyCap", type: "uint256" },
-          { internalType: "uint16", name: "eModeLtv", type: "uint16" },
-          {
-            internalType: "uint16",
-            name: "eModeLiquidationThreshold",
-            type: "uint16",
-          },
-          {
-            internalType: "uint16",
-            name: "eModeLiquidationBonus",
-            type: "uint16",
-          },
-          {
-            internalType: "address",
-            name: "eModePriceSource",
-            type: "address",
-          },
-          { internalType: "string", name: "eModeLabel", type: "string" },
-          { internalType: "bool", name: "borrowableInIsolation", type: "bool" },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.AggregatedReserveData[]",
-        name: "",
-        type: "tuple[]",
-      },
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "marketReferenceCurrencyUnit",
-            type: "uint256",
-          },
-          {
-            internalType: "int256",
-            name: "marketReferenceCurrencyPriceInUsd",
-            type: "int256",
-          },
-          {
-            internalType: "int256",
-            name: "networkBaseTokenPriceInUsd",
-            type: "int256",
-          },
-          {
-            internalType: "uint8",
-            name: "networkBaseTokenPriceDecimals",
-            type: "uint8",
-          },
-        ],
-        internalType: "struct IUiPoolDataProviderV3.BaseCurrencyInfo",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-];
+import { ETH_DEPOSIT_ABI, ETH_WITHDRAW_ABI } from "@/abis/AAveABI";
 
-async function checkAllowance(
-  tokenAddress: `0x${string}`,
-  owner: `0x${string}`,
-  spender: `0x${string}`,
-  amountInWei: bigint
-) {
-  const allowance = await publicClient.readContract({
-    address: tokenAddress,
-    abi: [
-      {
-        inputs: [
-          { name: "owner", type: "address" },
-          { name: "spender", type: "address" },
-        ],
-        name: "allowance",
-        outputs: [{ name: "", type: "uint256" }],
-        stateMutability: "view",
-        type: "function",
-      },
-    ],
-    functionName: "allowance",
-    args: [owner, spender],
-  });
+const LIDO_STAKE_ABI = ["function stake(uint256 lockTime) external payable"];
 
-  if (allowance) {
-    return amountInWei <= allowance;
-  }
+export const SubmitButton = ({
+  isLoading,
+  isDeposit,
+}: {
+  isLoading: boolean;
+  isDeposit: boolean;
+}) => (
+  <Button
+    type="submit"
+    className="bg-primary text-white px-4 py-2 rounded-md"
+    disabled={isLoading}
+  >
+    {isLoading ? (
+      <>
+        <Loading className="w-4 h-4 mr-1" />
+        <span>{isDeposit ? "Deposit..." : "Withdraw..."}</span>
+      </>
+    ) : isDeposit ? (
+      "Deposit"
+    ) : (
+      "Withdraw"
+    )}
+  </Button>
+);
 
-  return false;
-}
-
+//aave  存款 提现 弹框
 export const DepositModal = ({
   open = false,
   onOpenChange,
+  evmUsdtBalance,
+  isDeposit,
 }: {
-  open?: boolean;
-  onOpenChange?: (open: boolean, status?: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  evmUsdtBalance: number;
+  isDeposit: boolean;
 }) => {
-  const [isOpen, setIsOpen] = useState(open);
-  const [amount, setAmount] = useState("");
-  const [isSendDisabled, setIsSendDisabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, wallet } = useBolarity();
-  const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
-  const { connection } = useConnection();
-
-  useEffect(() => {
-    if (parseFloat(amount) > 0 && isConnected) {
-      setIsSendDisabled(false);
-    } else {
-      setIsSendDisabled(true);
-    }
-  }, [amount, isConnected]);
-
-  const onChange = (open: boolean, status?: boolean) => {
-    setIsOpen(open);
-    if (onOpenChange) onOpenChange(open, status);
+  const { evmAddress } = useBolarityWalletProvider();
+  const { CheckApproveTransfer } = useDepositModal();
+  const onChange = (open: boolean) => {
+    onOpenChange(open);
+    reset();
   };
+  const controllModal = (open: boolean) => {
+    setIsLoading(open);
+    onOpenChange(open);
+    reset();
+  };
+  const { writeContractAsync } = useWriteContract();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+  } = useForm();
 
-  const onSendTransaction = async (
-    solanaPublicKey: PublicKey,
-    txPayload: any
-  ) => {
-    const provider = getProvider(
-      {
-        signTransaction,
-        signAllTransactions,
-        publicKey: solanaPublicKey,
-      },
-      connection
-    );
-    const program = new anchor.Program(IDL!, provider);
+  const isEthSumbit = async (data: { amount: number }) => {
+    console.log("eth-----:", data);
+    setIsLoading(true);
+    const { amount } = data;
+    const amountInWei = parseUnits(amount.toString(), 6); // Convert USDT to wei
+    const functionName = isDeposit ? "supply" : "withdraw",
+      iface = isDeposit ? ETH_DEPOSIT_ABI : ETH_WITHDRAW_ABI,
+      args = isDeposit
+        ? [EVM_USDT_CONTRACT, amountInWei, evmAddress, 0]
+        : [EVM_USDT_CONTRACT, amountInWei, evmAddress];
 
-    const NETWORK = "TESTNET";
-    const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
-    const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
-    const HELLO_WORLD_PID = program.programId;
-    console.log("CORE_BRIDGE_PID:", CORE_BRIDGE_PID.toString());
-    console.log("HELLO_WORLD_PID:", HELLO_WORLD_PID.toString());
+    const title = isDeposit ? "Deposit " : "Withdraw ";
 
-    const realConfig = deriveAddress([Buffer.from("config")], HELLO_WORLD_PID);
-    console.log("realConfig:", realConfig.toString());
-
-    const message2 = await getProgramSequenceTracker(
-      connection,
-      program.programId,
-      CORE_BRIDGE_PID
-    )
-      .then((tracker) =>
-        deriveAddress(
-          [
-            Buffer.from("sent"),
-            (() => {
-              // const buf = Buffer.alloc(8);
-              // buf.writeBigUInt64LE(tracker.sequence + BigInt(1));
-              // return buf;
-              return writeBigUint64LE(tracker.sequence + BigInt(1));
-            })(),
-          ],
-          HELLO_WORLD_PID
-        )
-      )
-      .catch((err) => {
-        toast.error("Failed to get program sequence tracker");
-        console.log("err:", err);
+    //   // 2. 发送交易
+    try {
+      const resHash = await writeContractAsync({
+        abi: iface,
+        address: AAVE_CONTRACT as `0x${string}`,
+        functionName,
+        args,
       });
 
-    if (!message2) {
-      return;
-    }
-
-    const wormholeAccounts2 = getPostMessageCpiAccounts(
-      program.programId,
-      CORE_BRIDGE_PID,
-      solanaPublicKey,
-      message2
-    );
-    console.log("wormholeAccounts2:", wormholeAccounts2);
-
-    const message = hexStringToUint8Array(txPayload);
-    try {
-      const params = {
-        config: realConfig,
-        wormholeProgram: CORE_BRIDGE_PID,
-        ...wormholeAccounts2,
-      };
-      const ix1 = program.methods.sendMessage(Buffer.from(message));
-      const ix2 = ix1.accountsStrict(params);
-      const ix3 = await ix2.instruction();
-      const tx3 = new Transaction().add(ix3);
-      tx3.feePayer = solanaPublicKey;
-      tx3.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const signature = await sendTransaction(tx3, connection);
-      const latestBlockhash = await connection.getLatestBlockhash();
-
-      // Send transaction and await for signature
-      await connection.confirmTransaction(
-        { signature, ...latestBlockhash },
-        "confirmed"
-      );
-
-      return signature;
-      // appreove usdt success.
-    } catch (error: any) {
-      return error;
+      if (resHash) {
+        setTimeout(() => {
+          // 提示授权成功
+          handleTransactionSuccess(
+            resHash as string,
+            `https://sepolia.etherscan.io/tx/${resHash}`,
+            title
+          );
+          // 关闭状态
+          controllModal(false);
+        }, 3000);
+      } else {
+        toast.error(title + " Failed.");
+        controllModal(false);
+      }
+    } catch (e) {
+      console.log("error--isEthSumbit:", e);
+      toast.error(title + " Failed.");
+      controllModal(false);
     }
   };
 
-  const onApprove = async (solanaPublicKey: PublicKey) => {
-    const userAddress = encodeAbiParameters(
-      [{ type: "bytes32" }],
-      [toHex(Buffer.from(solanaPublicKey.toBytes()))]
-    );
-    const contractAddressPadded = pad(toHex(toBytes(usdtContractAddress)), {
-      size: 32,
-      dir: "left",
-    });
-    const contractAddress = encodeAbiParameters(
-      [{ type: "bytes32" }],
-      [contractAddressPadded]
-    );
+  // 执行授权
+  const SumbitCheckApprove = async (data: { amount: number }) => {
     let ABI = ["function approve(address to, uint256 tokenId)"];
-    // 解析 ABI
-    const iface = parseAbi(ABI);
-    // 使用 encodeFunctionData 编码函数调用数据
-    const paras = encodeFunctionData({
-      abi: iface,
-      functionName: "approve",
-      args: [
-        aaveContractAddress,
-        BigInt(
-          "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-        ),
-      ],
-    });
-    const payloadPart = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
-      [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
-    );
-    // 6. Encode the final payload
-    const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
-    );
-
-    return onSendTransaction(solanaPublicKey, txPayload);
+    try {
+      const hash = await writeContractAsync({
+        address: EVM_USDT_CONTRACT,
+        abi: parseAbi(ABI),
+        functionName: "approve",
+        args: [AAVE_CONTRACT, APPROVE_BASE_AMOUNT],
+        // args: [AAVE_CONTRACT, 0n],
+      });
+      console.log("hash:", hash);
+      if (hash) {
+        // 执行授权 要进行轮询，直到授权成功
+        const intervalTime = setInterval(async () => {
+          if (await CheckApproveTransfer()) {
+            // 提示授权成功
+            handleTransactionSuccess(
+              hash as string,
+              `https://sepolia.etherscan.io/tx/${hash}`,
+              "Approve"
+            );
+            clearInterval(intervalTime);
+            // 停止定时器
+            // 执行转账逻辑
+            isEthSumbit(data);
+          }
+        }, 1000); // 每 500ms 检查一次
+      }
+    } catch (error) {
+      console.log("error--approve:", error);
+      toast.error("Approve Failed.");
+    }
   };
 
-  const handleSubmit = async () => {
-    if (!isConnected || !wallet || !wallet.address || !wallet.evmAddress)
-      return;
-    if (!amount) return;
-
+  const submitForm = async (data: { amount: number }) => {
     setIsLoading(true);
-    setIsSendDisabled(true);
-    const solanaPublicKey = new PublicKey(wallet.address);
-    const userAddress = encodeAbiParameters(
-      [{ type: "bytes32" }],
-      [toHex(Buffer.from(solanaPublicKey.toBytes()))]
-    );
-    const amountInWei = parseUnits(amount.toString(), 6); // Convert USDT to wei
-
-    // 判断是否需要授权
-    const isApproved = await checkAllowance(
-      usdtContractAddress,
-      wallet.evmAddress as `0x${string}`,
-      aaveContractAddress,
-      amountInWei
-    );
-    if (!isApproved) {
-      await onApprove(solanaPublicKey);
-      // 等待2s
-      await wait(2000);
-    }
-
-    const proxyAddress = wallet.evmAddress;
-    const contractAddressPadded = pad(toHex(toBytes(aaveContractAddress)), {
-      size: 32,
-      dir: "left",
-    });
-    const contractAddress = encodeAbiParameters(
-      [{ type: "bytes32" }],
-      [contractAddressPadded]
-    );
-    const ABI = [
-      "function supply(address asset,uint256 amount,address onBehalfOf,uint16 referralCode)",
-    ];
-    // 解析 ABI
-    const iface = parseAbi(ABI);
-    // 使用 encodeFunctionData 编码函数调用数据
-    const paras = encodeFunctionData({
-      abi: iface,
-      functionName: "supply",
-      args: [usdtContractAddress, amountInWei, proxyAddress, 0],
-    });
-    const payloadPart = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
-      [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
-    );
-    const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
-    );
-    const signature = await onSendTransaction(solanaPublicKey, txPayload);
-    if (signature) {
-      setTimeout(() => {
-        handleTransactionSuccess(
-          signature,
-          getExplorerLink("tx", signature, "devnet")
-        );
-        // 关闭状态
-        setIsSendDisabled(false);
-        setIsLoading(false);
-        // 关闭对话框
-        onChange(false, true);
-      }, 3000);
+    if (await CheckApproveTransfer()) {
+      isEthSumbit(data);
     } else {
-      toast.error("Transaction Failed.");
-
-      // 关闭状态
-      setIsSendDisabled(false);
-      setIsLoading(false);
-      // 关闭对话框
-      onChange(false, true);
+      SumbitCheckApprove(data);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onChange}>
+    <Dialog open={open} onOpenChange={onChange}>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Deposit</DialogTitle>
-          <DialogDescription>Deposit usdt</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="amount" className="text-right">
-              Amount
-            </Label>
-            <Input
-              type="number"
-              step="any"
-              id="amount"
-              placeholder="amount"
-              className="col-span-3"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+        <DialogTitle>{isDeposit ? "Deposit" : "Withdraw"} USDT</DialogTitle>
+        <form
+          onSubmit={handleSubmit(submitForm)}
+          onReset={() => {
+            console.log("onReset");
+            controllModal(false);
+          }}
+        >
+          <div className="grid gap-y-4 p-4">
+            <div className="flex flex-col gap-y-2 mt-2">
+              <Label htmlFor="amount" className="text-gray-500">
+                Amount
+              </Label>
+              <div className="flex-1  gap-x-1 flex justify-end items-center">
+                <Input
+                  id="amount"
+                  placeholder="Input amount"
+                  className="py-6"
+                  type="number"
+                  step="any"
+                  {...register("amount", {
+                    required: true,
+                    min: 0,
+                    max: evmUsdtBalance,
+                    validate: (value: any) =>
+                      (value > 0 && value <= evmUsdtBalance) ||
+                      "Amount must be greater than 0 and within balance",
+                  })}
+                />
+                <Label className="ml-2 text-gray-500 text-xl" htmlFor="amount">
+                  USDT
+                </Label>
+              </div>
+              <div className="flex justify-end gap-x-3 text-sm text-gray-500">
+                <span>{"Balance: " + evmUsdtBalance + " " + "USDT"}</span>
+                <span
+                  className="text-primary cursor-pointer"
+                  onClick={() => setValue("amount", evmUsdtBalance)}
+                >
+                  Max
+                </span>
+              </div>
+              {/* 错误信息 */}
+              <div>
+                {errors.amount && (
+                  <span className="text-red-500 float-right">
+                    {errors.amount.type === "max" ||
+                    errors.amount.type === "validate"
+                      ? "Insufficient balance"
+                      : "Please enter a valid amount"}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Submit Button */}
+            <div className="flex justify-end gap-x-3 text-sm text-gray-500">
+              <Button
+                type="reset"
+                className="bg-gray-500 text-white px-4 py-2 rounded-md"
+              >
+                Cancel
+              </Button>
+              {/* 提交 */}
+              <SubmitButton isLoading={isLoading} isDeposit={isDeposit} />
+            </div>
           </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              Close
-            </Button>
-          </DialogClose>
-
-          <div>
-            <Button
-              type="submit"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                handleSubmit();
-              }}
-              disabled={isSendDisabled}
-            >
-              {isLoading && (
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Deposit
-            </Button>
-          </div>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
 };
 
-export const WithdrawModal = ({
+//aave  存款 提现 弹框
+export const LidoDepositModal = ({
   open = false,
   onOpenChange,
+  evmUsdtBalance,
 }: {
-  open?: boolean;
-  onOpenChange?: (open: boolean, status?: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  evmUsdtBalance: number;
 }) => {
-  const [isOpen, setIsOpen] = useState(open);
-  const [amount, setAmount] = useState("");
-  const [isSendDisabled, setIsSendDisabled] = useState(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+  } = useForm();
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, wallet } = useBolarity();
-  const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
-  const { connection } = useConnection();
+  const { ChainType, solAddress } = useBolarityWalletProvider();
+  const { onSendTransaction } = useDepositModal();
+  const { writeContract } = useWriteContract();
 
-  useEffect(() => {
-    if (parseFloat(amount) > 0 && isConnected) {
-      setIsSendDisabled(false);
-    } else {
-      setIsSendDisabled(true);
-    }
-  }, [amount, isConnected]);
+  const isEthSumbit = async (data: { amount: number }) => {
+    console.log("eth----lido-:", data);
+    setIsLoading(true);
+    const { amount } = data;
+    const amountInWei = parseEther(amount.toString()); // Convert ETH to wei
 
-  const onChange = (open: boolean, status?: boolean) => {
-    setIsOpen(open);
-    if (onOpenChange) onOpenChange(open, status);
-  };
-
-  const onSendTransaction = async (
-    solanaPublicKey: PublicKey,
-    txPayload: any
-  ) => {
-    const provider = getProvider(
+    const functionName = "stake",
+      iface = ETH_TO_STETH_STAKING.abi;
+    // 2. 发送交易
+    writeContract(
       {
-        signTransaction,
-        signAllTransactions,
-        publicKey: solanaPublicKey,
+        abi: iface,
+        address: PROXY_LIDO_CONTRACT_ADDRESS,
+        functionName,
+        args: [60],
+        value: amountInWei,
       },
-      connection
+      {
+        onSuccess: (hash) => {
+          console.log("hash--isEthSumbit--", hash);
+          if (hash) {
+            setTimeout(() => {
+              handleTransactionSuccess(
+                hash as string,
+                `https://sepolia.etherscan.io/tx/${hash}`,
+                "Staking"
+              );
+              // 关闭状态
+              controllModal(false);
+            }, 3000);
+          } else {
+            toast.error("Transaction Failed.");
+            controllModal(false);
+          }
+        },
+      }
     );
-    const program = new anchor.Program(IDL!, provider);
-
-    const NETWORK = "TESTNET";
-    const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
-    const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
-    const HELLO_WORLD_PID = program.programId;
-    console.log("CORE_BRIDGE_PID:", CORE_BRIDGE_PID.toString());
-    console.log("HELLO_WORLD_PID:", HELLO_WORLD_PID.toString());
-
-    const realConfig = deriveAddress([Buffer.from("config")], HELLO_WORLD_PID);
-    console.log("realConfig:", realConfig.toString());
-
-    const message2 = await getProgramSequenceTracker(
-      connection,
-      program.programId,
-      CORE_BRIDGE_PID
-    )
-      .then((tracker) =>
-        deriveAddress(
-          [
-            Buffer.from("sent"),
-            (() => {
-              return writeBigUint64LE(tracker.sequence + BigInt(1));
-            })(),
-          ],
-          HELLO_WORLD_PID
-        )
-      )
-      .catch((err) => {
-        toast.error("Failed to get program sequence tracker");
-        console.log("err:", err);
-      });
-
-    if (!message2) {
-      return;
-    }
-
-    const wormholeAccounts2 = getPostMessageCpiAccounts(
-      program.programId,
-      CORE_BRIDGE_PID,
-      solanaPublicKey,
-      message2
-    );
-    console.log("wormholeAccounts2:", wormholeAccounts2);
-
-    const message = hexStringToUint8Array(txPayload);
-    try {
-      const params = {
-        config: realConfig,
-        wormholeProgram: CORE_BRIDGE_PID,
-        ...wormholeAccounts2,
-      };
-      const ix1 = program.methods.sendMessage(Buffer.from(message));
-      const ix2 = ix1.accountsStrict(params);
-      const ix3 = await ix2.instruction();
-      const tx3 = new Transaction().add(ix3);
-      tx3.feePayer = solanaPublicKey;
-      tx3.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const signature = await sendTransaction(tx3, connection);
-      const latestBlockhash = await connection.getLatestBlockhash();
-
-      // Send transaction and await for signature
-      await connection.confirmTransaction(
-        { signature, ...latestBlockhash },
-        "confirmed"
-      );
-
-      return signature;
-      // appreove usdt success.
-    } catch (error: any) {
-      return error;
-    }
   };
 
-  const handleSubmit = async () => {
-    if (!isConnected || !wallet || !wallet.address || !wallet.evmAddress)
-      return;
-    if (!amount) return;
+  const controllModal = (open: boolean) => {
+    console.log("controllModal:", open);
+    reset();
+    setIsLoading(open);
+    onOpenChange(open);
+  };
+
+  const onSubmit = async (data: { amount: number }) => {
+    console.log("Form Data:", data);
+    const { amount } = data;
 
     setIsLoading(true);
-    setIsSendDisabled(true);
 
-    const solanaPublicKey = new PublicKey(wallet.address);
+    const solanaPublicKey = new PublicKey(solAddress);
     const userAddress = encodeAbiParameters(
       [{ type: "bytes32" }],
       [toHex(Buffer.from(solanaPublicKey.toBytes()))]
     );
-    const amountInWei = parseUnits(amount.toString(), 6); // Convert USDT to wei
 
-    const proxyAddress = wallet.evmAddress;
-    const contractAddressPadded = pad(toHex(toBytes(aaveContractAddress)), {
-      size: 32,
-      dir: "left",
-    });
+    const amountInWei = parseEther(amount.toString()); // Convert ETH to wei
+
+    const contractAddressPadded = pad(
+      toHex(toBytes(PROXY_LIDO_CONTRACT_ADDRESS)),
+      {
+        size: 32,
+        dir: "left",
+      }
+    );
     const contractAddress = encodeAbiParameters(
       [{ type: "bytes32" }],
       [contractAddressPadded]
     );
-    const ABI = ["function withdraw(address asset,uint256 amount, address to)"];
+    console.log("contractAddress:", contractAddress);
     // 解析 ABI
-    const iface = parseAbi(ABI);
+    const iface = parseAbi(LIDO_STAKE_ABI),
+      functionName = "stake";
     // 使用 encodeFunctionData 编码函数调用数据
     const paras = encodeFunctionData({
       abi: iface,
-      functionName: "withdraw",
-      args: [usdtContractAddress, amountInWei, proxyAddress],
+      functionName,
+      args: [60],
     });
+    console.log("paras:", paras);
     const payloadPart = encodeAbiParameters(
       [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
-      [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
+      [contractAddress, amountInWei, bytesToHex(toBytes(paras))]
     );
+
     const txPayload = encodeAbiParameters(
       [{ type: "bytes32" }, { type: "bytes" }],
       [userAddress, payloadPart]
@@ -836,387 +379,99 @@ export const WithdrawModal = ({
           getExplorerLink("tx", signature, "devnet")
         );
         // 关闭状态
-        setIsSendDisabled(false);
-        setIsLoading(false);
-        // 关闭对话框
-        onChange(false, true);
+        controllModal(false);
       }, 3000);
     } else {
       toast.error("Transaction Failed.");
-
-      // 关闭状态
-      setIsSendDisabled(false);
-      setIsLoading(false);
-      // 关闭对话框
-      onChange(false, true);
+      controllModal(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onChange}>
+    <Dialog open={open} onOpenChange={controllModal}>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Withdraw</DialogTitle>
-          <DialogDescription>Withdraw USDT</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="amount" className="text-right">
-              Amount
-            </Label>
-            <Input
-              type="number"
-              step="any"
-              id="amount"
-              placeholder="amount"
-              className="col-span-3"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              Close
-            </Button>
-          </DialogClose>
-
-          <div>
-            <DialogClose asChild>
+        <DialogTitle>Stake ETH</DialogTitle>
+        <form
+          onSubmit={handleSubmit(
+            ChainType == SupportChain.Ethereum ? isEthSumbit : onSubmit
+          )}
+          onReset={() => {
+            console.log("onReset");
+            controllModal(false);
+          }}
+        >
+          <div className="grid gap-y-4 p-4">
+            <div className="flex flex-col gap-y-2 mt-2">
+              <Label htmlFor="amount" className="text-gray-500">
+                Amount
+              </Label>
+              <div className="flex-1  gap-x-1 flex justify-end items-center">
+                <Input
+                  id="amount"
+                  placeholder="Input amount"
+                  className="py-6"
+                  type="number"
+                  step="any"
+                  {...register("amount", {
+                    required: true,
+                    min: 0,
+                    max: evmUsdtBalance,
+                    validate: (value: any) =>
+                      (value > 0 && value <= evmUsdtBalance) ||
+                      "Amount must be greater than 0 and within balance",
+                  })}
+                />
+                <Label className="ml-2 text-gray-500 text-xl" htmlFor="amount">
+                  ETH
+                </Label>
+              </div>
+              <div className="flex justify-end gap-x-3 text-sm text-gray-500">
+                <span>{"Balance: " + evmUsdtBalance + " " + "ETH"}</span>
+                <span
+                  className="text-primary cursor-pointer"
+                  onClick={() => setValue("amount", evmUsdtBalance)}
+                >
+                  Max
+                </span>
+              </div>
+              {/* 错误信息 */}
+              <div>
+                {errors.amount && (
+                  <span className="text-red-500 float-right">
+                    {errors.amount.type === "max" ||
+                    errors.amount.type === "validate"
+                      ? "Insufficient balance"
+                      : "Please enter a valid amount"}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Submit Button */}
+            <div className="flex justify-end gap-x-3 text-sm text-gray-500">
+              <Button
+                type="reset"
+                className="bg-gray-500 text-white px-4 py-2 rounded-md"
+              >
+                Cancel
+              </Button>
               <Button
                 type="submit"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-
-                  handleSubmit();
-                }}
-                disabled={isSendDisabled}
+                className="bg-primary text-white px-4 py-2 rounded-md"
+                disabled={isLoading}
               >
-                {isLoading && (
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                {isLoading ? (
+                  <>
+                    <Loading className="w-4 h-4 mr-1" />
+                    <span>Staking...</span>
+                  </>
+                ) : (
+                  "Stake"
                 )}
-                Withdraw
               </Button>
-            </DialogClose>
+            </div>
           </div>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
-  );
-};
-
-interface IBalance {
-  solanaUsdt?: number;
-  evmUsdt?: number;
-  depositedUsdt?: number;
-  apyUsdt?: string;
-  dailyUsdt?: string;
-}
-const DefaultBalance: IBalance = {
-  solanaUsdt: 0,
-  evmUsdt: 0,
-  depositedUsdt: 0,
-  apyUsdt: "",
-  dailyUsdt: "",
-};
-
-interface IReserveUSDTBalance {
-  balance: number;
-  apy: string;
-  daily: string;
-}
-interface IReserveData {
-  usdt: IReserveUSDTBalance;
-}
-const DefaultReserveData: IReserveData = {
-  usdt: {
-    balance: 0,
-    apy: "",
-    daily: "",
-  },
-};
-
-const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
-  return useQuery({
-    queryKey: ["getReserveData", evmAddress],
-    enabled: !!evmAddress,
-    queryFn: async (): Promise<IReserveData> => {
-      const _reservesData: IReserveData = DefaultReserveData;
-      const address = "0x69529987fa4a075d0c00b0128fa848dc9ebbe9ce";
-      const pAddress = "0x012bac54348c0e635dcac9d5fb99f06f24136c9a";
-
-      let scaledATokenBalance: bigint = 0n;
-      let liquidityIndex: bigint = 0n;
-      let liquidityRate: bigint = 0n;
-
-      try {
-        const userReserveDataResp = await publicClient.readContract({
-          address,
-          abi: aaveABI,
-          functionName: "getUserReservesData",
-          args: [pAddress, evmAddress as `0x${string}`],
-        });
-        // console.log("getUserReservesData:", userReserveData);
-        if (
-          userReserveDataResp &&
-          userReserveDataResp instanceof Array &&
-          userReserveDataResp.length > 0
-        ) {
-          for (const item of userReserveDataResp[0]) {
-            // console.log("userReserveData item:", item);
-            if (
-              item.underlyingAsset.toLocaleLowerCase() ==
-              usdtContractAddress.toLocaleLowerCase()
-            ) {
-              scaledATokenBalance = item.scaledATokenBalance;
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        console.log("getUserReservesData error:", e);
-      }
-
-      try {
-        const reservesDataResp = await publicClient.readContract({
-          address,
-          abi: aaveABI,
-          functionName: "getReservesData",
-          args: [pAddress],
-        });
-        // console.log("getReservesData:", reservesData);
-        if (
-          reservesDataResp &&
-          reservesDataResp instanceof Array &&
-          reservesDataResp.length > 0
-        ) {
-          for (const item of reservesDataResp[0]) {
-            if (
-              item.underlyingAsset.toLocaleLowerCase() ==
-              usdtContractAddress.toLocaleLowerCase()
-            ) {
-              liquidityIndex = item.liquidityIndex;
-              liquidityRate = item.liquidityRate;
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        console.log("getReservesData error:", e);
-      }
-
-      // console.log(
-      //   "fetchReserveData:",
-      //   scaledATokenBalance,
-      //   liquidityIndex,
-      //   liquidityRate
-      // );
-
-      try {
-        // 计算USDT balance
-        if (scaledATokenBalance > 0 && liquidityIndex) {
-          const tenToThe27 = BigInt(10 ** 27);
-          const _balance =
-            (BigInt(scaledATokenBalance) * BigInt(liquidityIndex)) / tenToThe27;
-          const balance = formatUnits(_balance, 6);
-          _reservesData.usdt.balance = Number(balance);
-        }
-
-        // 计算APY
-        if (liquidityRate) {
-          const RAY = 10n ** 27n; // 10 to the power 27 as bigint
-          const SECONDS_PER_YEAR = 31_536_000;
-
-          // Calculate depositAPR as a bigint
-          const depositAPR = Number(liquidityRate) / Number(RAY);
-
-          // Calculate APY using Math.pow with floating-point precision
-          const depositAPY =
-            Math.pow(1 + depositAPR / SECONDS_PER_YEAR, SECONDS_PER_YEAR) - 1;
-          const dailyRate = Math.pow(1 + depositAPY, 1 / 365) - 1;
-
-          _reservesData.usdt.apy = (depositAPY * 100).toFixed(2) + "%";
-          _reservesData.usdt.daily = (dailyRate * 100).toFixed(2) + "%";
-        }
-      } catch (error) {
-        console.log("calculate reserve data error:", error);
-      }
-
-      console.log("fetchReserveData:", _reservesData);
-
-      return _reservesData;
-    },
-    refetchInterval: 10000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: false,
-  });
-};
-
-export const StakeTable = () => {
-  const { wallet } = useBolarity();
-  const [openDepositModal, setOpenDepositModal] = useState(false);
-  const [openWithdrawModal, setOpenWithdrawModal] = useState(false);
-  const { accountBalance, refetch: refetchAccountBalance } = useAccountBalance({
-    solAddress: wallet.address,
-    evmAddress: wallet.evmAddress,
-  });
-  const { data: reservesData, refetch: refetchReserveData } = useGetReserveData(
-    {
-      evmAddress: wallet.evmAddress,
-    }
-  );
-  const [balance, setBalance] = useState<IBalance>(DefaultBalance);
-
-  const onDeposit = () => {
-    setOpenDepositModal(true);
-  };
-
-  const handleCloseDepositModal = (open: boolean, status?: boolean) => {
-    if (!open) {
-      setOpenDepositModal(false);
-    }
-
-    if (status) {
-      console.log("refresh account balance...");
-      // refetchAccountBalance();
-    }
-  };
-
-  const onWithdraw = () => {
-    setOpenWithdrawModal(true);
-  };
-
-  const handleCloseWithdrawModal = (open: boolean, status?: boolean) => {
-    if (!open) {
-      setOpenWithdrawModal(false);
-    }
-    if (status) {
-      console.log("refresh reserve data...");
-      // handleRefresh();
-    }
-  };
-
-  const handleRefresh = async () => {
-    await refetchAccountBalance();
-    await refetchReserveData();
-  };
-
-  useEffect(() => {
-    setBalance({
-      solanaUsdt: accountBalance.solUsdtBalance,
-      evmUsdt: accountBalance.ethUsdtBalance,
-      depositedUsdt: reservesData?.usdt.balance || 0,
-      apyUsdt: reservesData?.usdt.apy || "-",
-      dailyUsdt: reservesData?.usdt.daily || "-",
-    });
-  }, [
-    accountBalance.solBalance,
-    accountBalance.ethBalance,
-    reservesData?.usdt.balance,
-    reservesData?.usdt.apy,
-    reservesData?.usdt.daily,
-    accountBalance.solUsdtBalance,
-    accountBalance.ethUsdtBalance,
-  ]);
-
-  return (
-    <>
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg md:text-2xl xl:text-4xl font-bold"></h2>
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full"
-          onClick={handleRefresh}
-        >
-          <RefreshCcwIcon className="h-5 w-5 text-primary" />
-        </Button>
-      </div>
-      <Table className="mt-0 md:mt-4">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="p-3"></TableHead>
-            <TableHead className="p-3">Network</TableHead>
-            <TableHead className="p-3">Application</TableHead>
-            <TableHead className="p-3">Wallet Balance</TableHead>
-            <TableHead className="p-3">Balance</TableHead>
-            <TableHead className="p-3">APY</TableHead>
-            <TableHead className="p-3">DAILY</TableHead>
-            <TableHead className="p-3"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow>
-            <TableCell className="p-3 lg:w-[160px] xl:w-[240px]">
-              <div className="flex gap-2 items-center">
-                <Image src="/tether.png" alt="USDT" width={24} height={24} />
-                <h4 className="xl:text-lg uppercase">USDT</h4>
-              </div>
-            </TableCell>
-            <TableCell className="p-3lg:w-[100px] xl:w-[160px]">
-              <FaEthereum className="h-5 w-5" />
-            </TableCell>
-            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <Image src="/aave.png" alt="AAVE" width={24} height={24} />
-            </TableCell>
-            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <h5 className="xl:text-lg">
-                {balance.evmUsdt?.toFixed(2) || 0.0}
-              </h5>
-            </TableCell>
-            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <h5 className="xl:text-lg">
-                {balance.depositedUsdt?.toFixed(2) || 0.0}
-              </h5>
-            </TableCell>
-            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <h5 className="xl:text-lg">{balance.apyUsdt || "-"}</h5>
-            </TableCell>
-            <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
-              <h5 className="xl:text-lg">{balance.dailyUsdt || "-"}</h5>
-            </TableCell>
-            <TableCell className="p-3 text-right lg:w-[100px] xl:w-[160px]">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <DotsHorizontalIcon className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    className="cursor-pointer"
-                    onClick={onDeposit}
-                  >
-                    Deposit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="cursor-pointer"
-                    onClick={onWithdraw}
-                  >
-                    Withdraw
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-
-      {openDepositModal && (
-        <DepositModal
-          open={openDepositModal}
-          onOpenChange={handleCloseDepositModal}
-        />
-      )}
-
-      {openWithdrawModal && (
-        <WithdrawModal
-          open={openWithdrawModal}
-          onOpenChange={handleCloseWithdrawModal}
-        />
-      )}
-    </>
   );
 };
