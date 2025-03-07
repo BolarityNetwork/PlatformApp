@@ -28,7 +28,7 @@ import {
   writeUInt16LE,
 } from "@/lib/utils";
 
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 
 import { useWriteContract } from "wagmi";
 
@@ -87,8 +87,7 @@ const STATIC_AMOUNT = 0.01; //最低转账金额
 function EthTransferFunc() {
   const { writeContract, writeContractAsync } = useWriteContract();
   const { getExplorerUrl } = useCluster();
-  const { allowanceWsol, evmAddress, CheckApproveTransfer } =
-    useBolarityWalletProvider();
+  const { evmAddress, CheckApproveTransfer } = useBolarityWalletProvider();
 
   // 交易状态提示
   function transactionStatus(hash: string) {

@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone", // 配置为独立模式，通常用于容器化部署
+  // output: "export", // 配置为独立模式，通常用于容器化部署
+
   images: {
     unoptimized: true, // 禁用优化
   },
@@ -18,6 +20,8 @@ const nextConfig = {
     return config; // 返回修改后的 Webpack 配置
   },
   swcMinify: true, // 确保启用 SWC 压缩
+  // concurrentFeatures: true,
+  // fastRefresh: true,
   webpackDevMiddleware: (config) => {
     config.watchOptions = {
       ignored: /node_modules/, // 忽略 node_modules 文件夹

@@ -11,8 +11,7 @@ export enum CurrencyEnum {
 }
 export const BOLARITY_SOLANA_CONTRACT =
   process.env.NEXT_PUBLIC_BOLARITY_SOLANA_CONTRACT!;
-export const EVM_CONTRACT_ADDRESS = process.env
-  .NEXT_PUBLIC_BOLARITY_EVM_CONTRACT! as `0x${string}`;
+// export const EVM_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_BOLARITY_EVM_CONTRACT! as `0x${string}`;
 export const BOLARITY_EVM_CONTRACT = process.env
   .NEXT_PUBLIC_BOLARITY_EVM_CONTRACT! as `0x${string}`;
 export const TOKEN_BRIDGE_RELAYER_CONTRACT = process.env
@@ -61,3 +60,6 @@ export const APPROVE_BASE_AMOUNT = BigInt(
 
 export const ETH_CONTROLLED_SOL_TOKEN =
   process.env.NEXT_PUBLIC_WORMHOLE_EVM_CONTROLLED_TOKEN_BRIDGE!;
+
+// sol rpc url
+export const SOLANA_RPC_URL = `${process.env.NEXT_PUBLIC_RPC_URL}`;

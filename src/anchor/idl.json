@@ -1,5 +1,5 @@
 {
-  "address": "CLErExd7gNADvu5rDFmkFD1uAt7zksJ3TDfXsJqJ4QTs",
+  "address": "C29LRgV8mDqYXuDbpaaG5LH4TVbPSRkrHebfTBrk9og7",
   "metadata": {
     "name": "hackathon",
     "version": "0.1.0",
@@ -28,16 +28,7 @@
   "instructions": [
     {
       "name": "active",
-      "discriminator": [
-        70,
-        87,
-        112,
-        115,
-        9,
-        21,
-        167,
-        144
-      ],
+      "discriminator": [70, 87, 112, 115, 9, 21, 167, 144],
       "accounts": [
         {
           "name": "owner",
@@ -54,9 +45,7 @@
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program."
-          ],
+          "docs": ["System program."],
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -68,10 +57,7 @@
         {
           "name": "address",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         }
       ]
@@ -89,16 +75,7 @@
         "",
         "* `ctx` - `Initialize` context"
       ],
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
       "accounts": [
         {
           "name": "owner",
@@ -122,23 +99,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
+                "value": [99, 111, 110, 102, 105, 103]
               }
             ]
           }
         },
         {
           "name": "wormhole_program",
-          "docs": [
-            "Wormhole program."
-          ],
+          "docs": ["Wormhole program."],
           "address": "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
         },
         {
@@ -152,14 +120,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  66,
-                  114,
-                  105,
-                  100,
-                  103,
-                  101
-                ]
+                "value": [66, 114, 105, 100, 103, 101]
               }
             ]
           }
@@ -177,19 +138,7 @@
               {
                 "kind": "const",
                 "value": [
-                  102,
-                  101,
-                  101,
-                  95,
-                  99,
-                  111,
-                  108,
-                  108,
-                  101,
-                  99,
-                  116,
-                  111,
-                  114
+                  102, 101, 101, 95, 99, 111, 108, 108, 101, 99, 116, 111, 114
                 ]
               }
             ]
@@ -207,15 +156,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  101,
-                  109,
-                  105,
-                  116,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [101, 109, 105, 116, 116, 101, 114]
               }
             ]
           }
@@ -232,16 +173,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  83,
-                  101,
-                  113,
-                  117,
-                  101,
-                  110,
-                  99,
-                  101
-                ]
+                "value": [83, 101, 113, 117, 101, 110, 99, 101]
               },
               {
                 "kind": "account",
@@ -260,23 +192,17 @@
         },
         {
           "name": "clock",
-          "docs": [
-            "Clock sysvar."
-          ],
+          "docs": ["Clock sysvar."],
           "address": "SysvarC1ock11111111111111111111111111111111"
         },
         {
           "name": "rent",
-          "docs": [
-            "Rent sysvar."
-          ],
+          "docs": ["Rent sysvar."],
           "address": "SysvarRent111111111111111111111111111111111"
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program."
-          ],
+          "docs": ["System program."],
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -295,16 +221,7 @@
         "",
         "* `vaa_hash` - Keccak256 hash of verified Wormhole message"
       ],
-      "discriminator": [
-        38,
-        144,
-        127,
-        225,
-        31,
-        225,
-        238,
-        25
-      ],
+      "discriminator": [38, 144, 127, 225, 31, 225, 238, 25],
       "accounts": [
         {
           "name": "payer",
@@ -324,14 +241,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
+                "value": [99, 111, 110, 102, 105, 103]
               }
             ]
           }
@@ -350,17 +260,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  80,
-                  111,
-                  115,
-                  116,
-                  101,
-                  100,
-                  86,
-                  65,
-                  65
-                ]
+                "value": [80, 111, 115, 116, 101, 100, 86, 65, 65]
               },
               {
                 "kind": "arg",
@@ -389,9 +289,7 @@
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program."
-          ],
+          "docs": ["System program."],
           "address": "11111111111111111111111111111111"
         },
         {
@@ -402,10 +300,7 @@
         {
           "name": "vaa_hash",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
@@ -419,10 +314,7 @@
         {
           "name": "address",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         }
       ]
@@ -441,16 +333,7 @@
         "* `chain`   - Wormhole Chain ID",
         "* `address` - Wormhole Emitter Address"
       ],
-      "discriminator": [
-        217,
-        153,
-        40,
-        34,
-        190,
-        121,
-        144,
-        105
-      ],
+      "discriminator": [217, 153, 40, 34, 190, 121, 144, 105],
       "accounts": [
         {
           "name": "owner",
@@ -460,9 +343,7 @@
           ],
           "writable": true,
           "signer": true,
-          "relations": [
-            "config"
-          ]
+          "relations": ["config"]
         },
         {
           "name": "config",
@@ -474,14 +355,7 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
+                "value": [99, 111, 110, 102, 105, 103]
               }
             ]
           }
@@ -497,9 +371,7 @@
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program."
-          ],
+          "docs": ["System program."],
           "address": "11111111111111111111111111111111"
         }
       ],
@@ -511,10 +383,7 @@
         {
           "name": "address",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         }
       ]
@@ -536,22 +405,11 @@
         "",
         "* `message` - Arbitrary message to send out"
       ],
-      "discriminator": [
-        57,
-        40,
-        34,
-        178,
-        189,
-        10,
-        65,
-        26
-      ],
+      "discriminator": [57, 40, 34, 178, 189, 10, 65, 26],
       "accounts": [
         {
           "name": "payer",
-          "docs": [
-            "Payer will pay Wormhole fee to post a message."
-          ],
+          "docs": ["Payer will pay Wormhole fee to post a message."],
           "writable": true,
           "signer": true
         },
@@ -565,23 +423,14 @@
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  102,
-                  105,
-                  103
-                ]
+                "value": [99, 111, 110, 102, 105, 103]
               }
             ]
           }
         },
         {
           "name": "wormhole_program",
-          "docs": [
-            "Wormhole program."
-          ],
+          "docs": ["Wormhole program."],
           "address": "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
         },
         {
@@ -602,22 +451,12 @@
         },
         {
           "name": "wormhole_emitter",
-          "docs": [
-            "Program's emitter account. Read-only."
-          ],
+          "docs": ["Program's emitter account. Read-only."],
           "pda": {
             "seeds": [
               {
                 "kind": "const",
-                "value": [
-                  101,
-                  109,
-                  105,
-                  116,
-                  116,
-                  101,
-                  114
-                ]
+                "value": [101, 109, 105, 116, 116, 101, 114]
               }
             ]
           }
@@ -632,30 +471,22 @@
         },
         {
           "name": "wormhole_message",
-          "docs": [
-            "account be mutable."
-          ],
+          "docs": ["account be mutable."],
           "writable": true
         },
         {
           "name": "system_program",
-          "docs": [
-            "System program."
-          ],
+          "docs": ["System program."],
           "address": "11111111111111111111111111111111"
         },
         {
           "name": "clock",
-          "docs": [
-            "Clock sysvar."
-          ],
+          "docs": ["Clock sysvar."],
           "address": "SysvarC1ock11111111111111111111111111111111"
         },
         {
           "name": "rent",
-          "docs": [
-            "Rent sysvar."
-          ],
+          "docs": ["Rent sysvar."],
           "address": "SysvarRent111111111111111111111111111111111"
         }
       ],
@@ -670,68 +501,23 @@
   "accounts": [
     {
       "name": "Config",
-      "discriminator": [
-        155,
-        12,
-        170,
-        224,
-        30,
-        250,
-        204,
-        130
-      ]
+      "discriminator": [155, 12, 170, 224, 30, 250, 204, 130]
     },
     {
       "name": "ForeignEmitter",
-      "discriminator": [
-        209,
-        139,
-        241,
-        247,
-        96,
-        178,
-        159,
-        2
-      ]
+      "discriminator": [209, 139, 241, 247, 96, 178, 159, 2]
     },
     {
       "name": "PDAAccount",
-      "discriminator": [
-        45,
-        144,
-        246,
-        42,
-        88,
-        234,
-        93,
-        2
-      ]
+      "discriminator": [45, 144, 246, 42, 88, 234, 93, 2]
     },
     {
       "name": "Received",
-      "discriminator": [
-        227,
-        186,
-        72,
-        102,
-        0,
-        233,
-        222,
-        41
-      ]
+      "discriminator": [227, 186, 72, 102, 0, 233, 222, 41]
     },
     {
       "name": "WormholeEmitter",
-      "discriminator": [
-        34,
-        95,
-        161,
-        132,
-        226,
-        225,
-        31,
-        11
-      ]
+      "discriminator": [34, 95, 161, 132, 226, 225, 31, 11]
     }
   ],
   "errors": [
@@ -784,24 +570,18 @@
   "types": [
     {
       "name": "Config",
-      "docs": [
-        "Config account data."
-      ],
+      "docs": ["Config account data."],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "owner",
-            "docs": [
-              "Program's owner."
-            ],
+            "docs": ["Program's owner."],
             "type": "pubkey"
           },
           {
             "name": "wormhole",
-            "docs": [
-              "Wormhole program's relevant addresses."
-            ],
+            "docs": ["Wormhole program's relevant addresses."],
             "type": {
               "defined": {
                 "name": "WormholeAddresses"
@@ -829,29 +609,20 @@
     },
     {
       "name": "ForeignEmitter",
-      "docs": [
-        "Foreign emitter account data."
-      ],
+      "docs": ["Foreign emitter account data."],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "chain",
-            "docs": [
-              "Emitter chain. Cannot equal `1` (Solana's Chain ID)."
-            ],
+            "docs": ["Emitter chain. Cannot equal `1` (Solana's Chain ID)."],
             "type": "u16"
           },
           {
             "name": "address",
-            "docs": [
-              "Emitter address. Cannot be zero address."
-            ],
+            "docs": ["Emitter address. Cannot be zero address."],
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "array": ["u8", 32]
             }
           }
         ]
@@ -869,10 +640,7 @@
           {
             "name": "address",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "array": ["u8", 32]
             }
           }
         ]
@@ -880,9 +648,7 @@
     },
     {
       "name": "Received",
-      "docs": [
-        "Received account."
-      ],
+      "docs": ["Received account."],
       "type": {
         "kind": "struct",
         "fields": [
@@ -895,14 +661,9 @@
           },
           {
             "name": "wormhole_message_hash",
-            "docs": [
-              "Keccak256 hash of verified Wormhole message."
-            ],
+            "docs": ["Keccak256 hash of verified Wormhole message."],
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "array": ["u8", 32]
             }
           },
           {
@@ -917,9 +678,7 @@
     },
     {
       "name": "WormholeAddresses",
-      "docs": [
-        "Wormhole program related addresses."
-      ],
+      "docs": ["Wormhole program related addresses."],
       "type": {
         "kind": "struct",
         "fields": [
@@ -949,17 +708,13 @@
     },
     {
       "name": "WormholeEmitter",
-      "docs": [
-        "Wormhole emitter account."
-      ],
+      "docs": ["Wormhole emitter account."],
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "bump",
-            "docs": [
-              "PDA bump."
-            ],
+            "docs": ["PDA bump."],
             "type": "u8"
           }
         ]
