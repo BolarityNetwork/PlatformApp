@@ -12,7 +12,6 @@ import {
   ActiveSolanaAccountBtn,
   SendModal,
   QrCodeModal,
-  // QrCodeModalSingle,
 } from "./account-ui";
 import { Separator } from "../ui/separator";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
@@ -44,10 +43,7 @@ export const AccountInfo = () => {
   return (
     <div className="h-auto lg:h-16 flex flex-col lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
       <div className="flex flex-row gap-x-4 items-center">
-        <WalletLogo
-          ChainType={ChainType || null}
-          isShow={ChainType == SupportChain.Ethereum}
-        />
+        <WalletLogo ChainType={ChainType || null} />
         <div className="flex flex-col items-center lg:items-start gap-y-2">
           <p className="text-sm text-muted-foreground">Total portfolio value</p>
           <AccountBalance />
@@ -121,19 +117,6 @@ export const AccountInfo = () => {
           solAddress={solAddress}
           evmAddress={evmAddress}
         />
-
-        {/* {
-          // 二维码
-          !isActiveStatue &&
-          <QrCodeModalSingle
-            title={ChainType == SupportChain.Ethereum ? 'Evm address' : 'Solana address'}
-            address={ChainType == SupportChain.Ethereum ? evmAddress : solAddress}
-            open={isReceive}
-            onOpenChange={(open) => {
-              setIsReceive(open);
-            }}
-          />
-        } */}
 
         {
           // 二维码

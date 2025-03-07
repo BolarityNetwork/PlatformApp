@@ -177,9 +177,10 @@ const MuitlAssetRow = ({
   onSend: () => void;
   onReceive: (asset: Asset) => void;
 }) => {
-  const [asset, setAsset] = useState<Asset | null>(null);
+  // const [asset, setAsset] = useState<Asset | null>(null);
+  const [asset, setAsset] = useState(null as Asset | null);
   // const [networks, setNetworks] = useState<string[]>([]);
-  const [networkIcons, setNetworkIcons] = useState<React.ReactNode[]>([]);
+  const [networkIcons, setNetworkIcons] = useState([]);
   const [openAssetsModal, setOpenAssetsModal] = useState(false);
 
   useEffect(() => {
@@ -299,9 +300,13 @@ const MuitlAssetRow = ({
 export const AssetsTable = () => {
   const { ChainType, solAddress, evmAddress } = useBolarityWalletProvider();
 
-  const [solList, setSolList] = useState<Asset[]>([]);
-  const [ethList, setEthList] = useState<Asset[]>([]);
-  const [usdtList, setUsdtList] = useState<Asset[]>([]);
+  // const [solList, setSolList] = useState<Asset[]>([]);
+  // const [ethList, setEthList] = useState<Asset[]>([]);
+  // const [usdtList, setUsdtList] = useState<Asset[]>([]);
+
+  const [solList, setSolList] = useState([] as Asset[]);
+  const [ethList, setEthList] = useState([] as Asset[]);
+  const [usdtList, setUsdtList] = useState([] as Asset[]);
 
   const {
     isLoading,

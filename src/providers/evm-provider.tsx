@@ -20,6 +20,7 @@ import {
 } from "wagmi";
 import { WalletConnectButton } from "@/components/widgets/connect-button";
 import { toast } from "sonner";
+import { useWidgetsProvider } from "./widgets-provider";
 
 // Hook: 获取支持的 EVM 连接器
 export const useEvmConnectors = () => {
@@ -52,8 +53,9 @@ export const EvmConnectModal = ({
 }) => {
   const connectors = useEvmConnectors();
   const { connectAsync } = useConnectEvm();
-  const { connector, chain, isConnected } = useEvmAccount();
+  const { chain, isConnected } = useEvmAccount();
   const { disconnectAsync } = useDisconnectEvm();
+  const { setIconUrl } = useWidgetsProvider()
 
   // 切换到指定网络（sepolia）
   const ensureCorrectChain = useCallback(async () => {
@@ -84,6 +86,8 @@ export const EvmConnectModal = ({
         }
         const address = res.accounts[0];
         onConnected(address, disconnectAsync);
+        console.log('connector.icon---', connector.icon)
+        setIconUrl(connector.icon)
       } catch (err: any) {
         console.error("Connection error:", err);
         toast.error("Failed to connect: " + err.message);

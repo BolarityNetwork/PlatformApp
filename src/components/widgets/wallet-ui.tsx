@@ -19,11 +19,13 @@ import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider"
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useDisconnect as useDisconnectEvm } from "wagmi";
 import { SupportChain } from "@/config";
+import { useWidgetsProvider } from "@/providers/widgets-provider";
 
 const WalletButton = () => {
   const { disconnect: disconnectSolana } = useWallet();
 
   const { disconnectAsync } = useDisconnectEvm();
+  const { setIconUrl } = useWidgetsProvider()
 
   const [openEvmModal, setOpenEvmModal] = useState(false);
   const [openSolanaModal, setOpenSolanaModal] = useState(false);
@@ -60,6 +62,7 @@ const WalletButton = () => {
     setSolAddress("");
     setEvmAddress("");
     setChainType(null);
+    setIconUrl("/phantom.svg")
     // setTimeout(() => {
 
     //   window.localStorage.clear();

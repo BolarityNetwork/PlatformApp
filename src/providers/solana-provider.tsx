@@ -3,7 +3,7 @@ import React from "react";
 import {
   ConnectionProvider,
   useWallet,
-  WalletProvider,
+  WalletProvider
 } from "@solana/wallet-adapter-react";
 import {
   WalletAdapterNetwork,
@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { WalletConnectButton } from "@/components/widgets/connect-button";
+import { useWidgetsProvider } from "./widgets-provider";
 
 export const SolanaConnectModal = ({
   open = false,
@@ -41,7 +42,9 @@ export const SolanaConnectModal = ({
 }) => {
   const { wallets, select, connect } = useWallet();
 
-  const handleConnect = (walletName: WalletName) => {
+  const { setIconUrl } = useWidgetsProvider()
+  const handleConnect = (walletName: WalletName, icon: string) => {
+    setIconUrl(icon)
     select(walletName);
     onConnected();
   };
@@ -60,7 +63,7 @@ export const SolanaConnectModal = ({
                   key={wallet.adapter.name}
                   name={wallet.adapter.name}
                   iconUrl={wallet.adapter.icon}
-                  onConnectRequest={() => handleConnect(wallet.adapter.name)}
+                  onConnectRequest={() => handleConnect(wallet.adapter.name, wallet.adapter.icon)}
                 // disabled={disabled}
                 />
               ))}
