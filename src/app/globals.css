@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-rotate {
+    animation: rotate 8s linear infinite;
+  }
+}
+
 /* *=========== Default theme =========== */
 /* @layer base {
   :root {
@@ -114,7 +129,6 @@
     --ring: 142.4 71.8% 29.2%;
   }
 }
-
 
 @layer base {
   * {

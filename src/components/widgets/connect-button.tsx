@@ -19,7 +19,7 @@ export const WalletConnectButton = (props: WalletConnectionProps) => {
         width={20}
         height={20}
       />
-      <h4 className="flex-1 text-lg text-white text-left">{props.name}</h4>
+      <span className="flex-1 text-lg text-white text-left">{props.name}</span>
       <Button className="w-[80px]" onClick={props.onConnectRequest} disabled={props.disabled}>
         Connect
       </Button>
