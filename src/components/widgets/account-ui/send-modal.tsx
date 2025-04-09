@@ -7,7 +7,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import TransferForm from "./lib/TransferForm";
+import TransferForm from "./transferForm/index";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
 const SendModal = ({
   accountBalance,

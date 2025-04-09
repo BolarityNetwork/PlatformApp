@@ -25,7 +25,7 @@ const WalletButton = () => {
   const { disconnect: disconnectSolana } = useWallet();
 
   const { disconnectAsync } = useDisconnectEvm();
-  const { setIconUrl } = useWidgetsProvider()
+  const { setIconUrl } = useWidgetsProvider();
 
   const [openEvmModal, setOpenEvmModal] = useState(false);
   const [openSolanaModal, setOpenSolanaModal] = useState(false);
@@ -38,8 +38,6 @@ const WalletButton = () => {
     setEvmAddress,
     setChainType,
   } = useBolarityWalletProvider();
-
-
 
   const handleEvmConnected = (address: string) => {
     console.log("handleEvmConnected:", address);
@@ -62,7 +60,8 @@ const WalletButton = () => {
     setSolAddress("");
     setEvmAddress("");
     setChainType(null);
-    setIconUrl("/phantom.svg")
+    // setIconUrl("/phantom.svg")
+    setIconUrl("/walletNo.svg");
     // setTimeout(() => {
 
     //   window.localStorage.clear();
@@ -105,21 +104,21 @@ const WalletButton = () => {
               Disconnect
             </DropdownMenuItem>
           )) || (
-              <>
-                <DropdownMenuItem onClick={() => setOpenEvmModal(true)}>
-                  <div className="flex items-center gap-2 py-2 cursor-pointer">
-                    <FaEthereum className="w-5 h-5" />
-                    <span className="font-bold">EVM Wallet</span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setOpenSolanaModal(true)}>
-                  <div className="flex items-center gap-2 py-2 cursor-pointer">
-                    <SiSolana className="w-5 h-5" />
-                    <span className="font-bold">Solana Wallet</span>
-                  </div>
-                </DropdownMenuItem>
-              </>
-            )}
+            <>
+              <DropdownMenuItem onClick={() => setOpenEvmModal(true)}>
+                <div className="flex items-center gap-2 py-2 cursor-pointer">
+                  <FaEthereum className="w-5 h-5" />
+                  <span className="font-bold">EVM Wallet</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setOpenSolanaModal(true)}>
+                <div className="flex items-center gap-2 py-2 cursor-pointer">
+                  <SiSolana className="w-5 h-5" />
+                  <span className="font-bold">Solana Wallet</span>
+                </div>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

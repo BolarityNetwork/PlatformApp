@@ -7,6 +7,13 @@ import { ReactQueryProvider } from "@/providers/react-query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { BolarityProvider } from "@/providers/bolarity-provider";
+import { Buffer } from "buffer";
+
+// (window as any).Buffer = Buffer; // 注入到全局
+
+// if (typeof window !== "undefined" && !window.crypto) {
+//   (window as any).crypto = require("crypto").webcrypto;
+// }
 
 const fontSans = FontSans({
   subsets: ["latin"],

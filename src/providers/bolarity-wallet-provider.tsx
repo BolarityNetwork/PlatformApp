@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
@@ -52,9 +52,9 @@ export function BolarityWalletProvider({
   const { publicKey } = useWallet();
   const { address } = useEvmAccount();
 
-  const [solAddress, setSolAddress] = useState<string>("");
-  const [evmAddress, setEvmAddress] = useState<string>("");
-  const [ChainType, setChainType] = useState<SupportChain | null>(null);
+  const [solAddress, setSolAddress] = useState("");
+  const [evmAddress, setEvmAddress] = useState("");
+  const [ChainType, setChainType] = useState(null as SupportChain | null);
   const { fetchProxySolanaAddress, fetchProxyEvmAddress } = useFetchAddress();
 
   useEffect(() => {
@@ -82,6 +82,7 @@ export function BolarityWalletProvider({
   function EvmRefreshProxyAddress() {
     if (publicKey) {
       fetchProxyEvmAddress(publicKey.toBase58()).then((res) => {
+        console.log("fetchProxyEvmAddress----", res);
         if (res) {
           setEvmAddress(res);
         }
@@ -98,13 +99,14 @@ export function BolarityWalletProvider({
   console.log("allowanceWsol---init--", allowanceWsol);
 
   const CheckApproveTransfer = async () => {
+    console.log("CheckApproveTransfer---evmAddress", evmAddress);
     const allowanceStatus = await publicClient.readContract({
       address: EVM_WSOL_CONTRACT,
       abi: erc20Abi,
       functionName: "allowance",
       args: [evmAddress as `0x${string}`, TOKEN_BRIDGE_RELAYER_CONTRACT],
     });
-    console.log("allowanceStatus", allowanceStatus);
+    console.log("CheckApproveTransfer---allowanceStatus", allowanceStatus);
     return Number(allowanceStatus);
   };
   return (

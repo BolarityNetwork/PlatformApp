@@ -16,13 +16,18 @@ import {
   bytesToHex,
 } from "viem";
 import { PublicKey } from "@solana/web3.js";
-import { getExplorerLink, handleTransactionSuccess } from "@/lib/utils";
+import {
+  getExplorerLink,
+  handleTransactionSuccess,
+  solanaPayloadHead,
+} from "@/lib/utils";
 import { toast } from "sonner";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 import { useDepositModal } from "./vaults-data";
 import { AAVE_CONTRACT, EVM_USDT_CONTRACT } from "@/config";
 
 import { SubmitButton } from "./vaults-ui";
+import { useOnSendTransaction } from "@/hooks/useWormHole";
 
 const DEPOSIT_ABI = [
     "function supply(address asset,uint256 amount,address onBehalfOf,uint16 referralCode)",
@@ -45,8 +50,9 @@ export const SolDeposit = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const { evmAddress, solAddress } = useBolarityWalletProvider();
-  const { CheckApproveTransfer, onApprove, onSendTransaction } =
-    useDepositModal();
+  const { CheckApproveTransfer, onApprove } = useDepositModal();
+  const { onSendTransaction } = useOnSendTransaction();
+
   const onChange = (open: boolean) => {
     onOpenChange(open);
     reset();
@@ -65,29 +71,66 @@ export const SolDeposit = ({
     setValue,
   } = useForm();
 
-  const onSubmit = async (data: { amount: number }) => {
-    setIsLoading(true);
-    console.log("desposit----allowanceData");
-    // 判断是否需要授权
-    if (!(await CheckApproveTransfer())) {
-      console.log("desposit--check--allowanceData");
+  /**
+   * 处理操作失败情况，显示错误信息并关闭模态框
+   * @param message 要显示的错误消息
+   */
+  const handleError = (message: string) => {
+    toast.error(message);
+    controllModal(false);
+  };
 
-      const confirmApprove = await onApprove();
-      console.log("desposit---confirmApprove", confirmApprove);
-      if (confirmApprove) {
-        const intervalTime = setInterval(async () => {
-          if (await CheckApproveTransfer()) {
-            clearInterval(intervalTime);
-            toast.success("Approve Success");
-            onSubmit_base(data);
-          }
-        }, 1000);
-      } else {
-        toast.error("Approve Failed");
-        controllModal(false);
+  /**
+   * 等待代币授权确认，设置超时机制
+   * @param maxAttempts 最大尝试次数
+   * @param intervalMs 每次尝试间隔（毫秒）
+   * @returns 返回一个Promise，解析为授权状态的布尔值
+   */
+  const waitForApprovalConfirmation = async (
+    maxAttempts = 30,
+    intervalMs = 1000
+  ): Promise<boolean> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const isApproved = await CheckApproveTransfer();
+      if (isApproved) return true;
+
+      // 等待下次尝试
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+
+    // 超时返回失败
+    return false;
+  };
+
+  /**
+   * 处理表单提交
+   */
+  const onSubmit = async (data: { amount: number }) => {
+    try {
+      setIsLoading(true);
+
+      // 检查是否已授权
+      if (!(await CheckApproveTransfer())) {
+        // 需要授权
+        if (!(await onApprove())) {
+          // 授权请求失败
+          return handleError("Approve failed");
+        }
+
+        // 等待授权确认
+        if (!(await waitForApprovalConfirmation())) {
+          // 授权确认超时
+          return handleError("Approve timeout");
+        }
+
+        toast.success("Approve success");
       }
-    } else {
-      onSubmit_base(data);
+
+      // 授权完成或无需授权，执行基础提交逻辑
+      await onSubmit_base(data);
+    } catch (error) {
+      console.error("存款错误:", error);
+      handleError("Deposit failed");
     }
   };
 
@@ -96,6 +139,7 @@ export const SolDeposit = ({
     const { amount } = data;
 
     const title = isDeposit ? "Deposit " : "Withdraw ";
+    console.log("Form---solana title:", title);
 
     const solanaPublicKey = new PublicKey(solAddress);
     const userAddress = encodeAbiParameters(
@@ -130,8 +174,8 @@ export const SolDeposit = ({
       [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
     );
     const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
     );
     const signature = await onSendTransaction(solanaPublicKey, txPayload);
     if (signature) {

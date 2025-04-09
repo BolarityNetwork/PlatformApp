@@ -16,6 +16,8 @@ import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { ChainId } from "@certusone/wormhole-sdk";
 import { toast } from "sonner";
 
+import { WORMHOLE_EVM_CHAIN_ID } from "@/config";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -293,3 +295,69 @@ export const isSolanaAddress = (address: string) => {
     return false;
   }
 };
+
+//新合约 2025-03-13
+const SOLANA_CHAIN_ID = 1,
+  reserved = 0;
+
+export const solanaChainIdBuffer = (() => {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16BE(SOLANA_CHAIN_ID);
+  return buf;
+})();
+export const sepoliaChainIdBuffer = (() => {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16BE(WORMHOLE_EVM_CHAIN_ID);
+  return buf;
+})();
+
+export const solanaPayloadHead = (() => {
+  const buf = Buffer.concat([
+    Buffer.from([0xfe, 0x01, 0x00, 0x00]),
+    solanaChainIdBuffer,
+    sepoliaChainIdBuffer,
+    Buffer.alloc(reserved),
+  ]);
+  return buf;
+})();
+
+// sepolia ---> solana
+export const sepoliaPayloadHead = (() => {
+  const buf = Buffer.concat([
+    Buffer.from([0xfe, 0x01, 0x00, 0x00]),
+    sepoliaChainIdBuffer,
+    solanaChainIdBuffer,
+    Buffer.alloc(reserved),
+  ]);
+  return buf;
+})();
+
+export const idToBuf = (tokenID: number) => {
+  const idBuf = Buffer.alloc(8);
+  const bigIntValue = BigInt(tokenID);
+
+  for (let i = 0; i < 8; i++) {
+    idBuf[7 - i] = Number((bigIntValue >> BigInt(i * 8)) & BigInt(0xff));
+  }
+  return idBuf;
+};
+
+export const solanaChainIdBuf = (() => {
+  const buf = Buffer.alloc(4);
+  buf.writeUint32BE(SOLANA_CHAIN_ID);
+  return buf;
+})();
+
+/**
+ * 格式化数字，保留指定的最小和最大小数位数 用 Intl.NumberFormat 来动态格式化余额（
+ */
+export function FormatNumberWithDecimals(
+  num: number,
+  minDecimals: number,
+  maxDecimals: number
+) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  }).format(num);
+}

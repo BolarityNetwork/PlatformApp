@@ -1,9 +1,8 @@
 "use client";
-import React from "react";
 import {
   ConnectionProvider,
   useWallet,
-  WalletProvider
+  WalletProvider,
 } from "@solana/wallet-adapter-react";
 import {
   WalletAdapterNetwork,
@@ -19,7 +18,7 @@ import {
   TorusWalletAdapter,
   TrustWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import { ReactNode, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import {
   Dialog,
@@ -40,11 +39,11 @@ export const SolanaConnectModal = ({
   onOpenChange: (open: boolean) => void;
   onConnected: () => void;
 }) => {
-  const { wallets, select, connect } = useWallet();
+  const { wallets, select } = useWallet();
 
-  const { setIconUrl } = useWidgetsProvider()
+  const { setIconUrl } = useWidgetsProvider();
   const handleConnect = (walletName: WalletName, icon: string) => {
-    setIconUrl(icon)
+    setIconUrl(icon);
     select(walletName);
     onConnected();
   };
@@ -54,7 +53,7 @@ export const SolanaConnectModal = ({
       <DialogContent className="max-w-[350px] md:max-w-sm p-6 border-0 bg-theme-light dark:bg-darkmode-theme-light">
         <DialogHeader>
           <DialogTitle asChild>
-            <h2 className="text-xl">Connect Wallet</h2>
+            <div className="text-xl">Connect Wallet</div>
           </DialogTitle>
           <DialogDescription asChild>
             <div className="flex flex-col gap-3 py-4">
@@ -63,8 +62,10 @@ export const SolanaConnectModal = ({
                   key={wallet.adapter.name}
                   name={wallet.adapter.name}
                   iconUrl={wallet.adapter.icon}
-                  onConnectRequest={() => handleConnect(wallet.adapter.name, wallet.adapter.icon)}
-                // disabled={disabled}
+                  onConnectRequest={() =>
+                    handleConnect(wallet.adapter.name, wallet.adapter.icon)
+                  }
+                  // disabled={disabled}
                 />
               ))}
             </div>

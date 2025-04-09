@@ -13,32 +13,19 @@ import {
   bytesToHex,
   erc20Abi,
 } from "viem";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { toast } from "sonner";
+import { PublicKey } from "@solana/web3.js";
 
-import {
-  getProvider,
-  hexStringToUint8Array,
-  writeBigUint64LE,
-} from "@/lib/utils";
-
-import * as anchor from "@coral-xyz/anchor";
-import { CONTRACTS } from "@certusone/wormhole-sdk";
-import { IDL } from "@/anchor/setup";
-import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import {
-  getPostMessageCpiAccounts,
-  getProgramSequenceTracker,
-} from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import {
   AAVE_CONTRACT,
   APPROVE_BASE_AMOUNT,
   ETH_TO_STETH_STAKING,
   EVM_USDT_CONTRACT,
+  LIDO_APR_URL,
   PROXY_LIDO_CONTRACT_ADDRESS,
 } from "@/config";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useOnSendTransaction } from "@/hooks/useWormHole";
+import { solanaPayloadHead } from "@/lib/utils";
 
 export interface IBalance {
   solanaUsdt?: number;
@@ -81,19 +68,23 @@ export const TableHeaderArr = [
   "DAILY",
   "",
 ];
+const address = "0x69529987fa4a075d0c00b0128fa848dc9ebbe9ce";
+const pAddress = "0x012bac54348c0e635dcac9d5fb99f06f24136c9a";
 
 export const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
+  console.log("evmAddress:", evmAddress);
   return useQuery({
     queryKey: ["getReserveData", evmAddress],
-    enabled: !!evmAddress,
+    // enabled: !!evmAddress,
     queryFn: async (): Promise<IReserveData> => {
-      const _reservesData: IReserveData = DefaultReserveData;
-      const address = "0x69529987fa4a075d0c00b0128fa848dc9ebbe9ce";
-      const pAddress = "0x012bac54348c0e635dcac9d5fb99f06f24136c9a";
+      if (!evmAddress) {
+        return Promise.reject("EVM address is empty, stopping request.");
+      }
 
       let scaledATokenBalance: bigint = 0n;
       let liquidityIndex: bigint = 0n;
       let liquidityRate: bigint = 0n;
+      let _reservesData: IReserveData = DefaultReserveData;
 
       try {
         const userReserveDataResp = await publicClient.readContract({
@@ -158,6 +149,8 @@ export const useGetReserveData = ({ evmAddress }: { evmAddress: string }) => {
             (BigInt(scaledATokenBalance) * BigInt(liquidityIndex)) / tenToThe27;
           const balance = formatUnits(_balance, 6);
           _reservesData.usdt.balance = Number(balance);
+        } else {
+          _reservesData.usdt.balance = 0;
         }
 
         // 计算APY
@@ -206,7 +199,7 @@ export const useGetLindoReserveData = ({
           functionName: "getStEthBalance",
           args: [evmAddress as `0x${string}`],
         });
-        // console.log('getlidoDdata-----:', userReserveDataResp)
+        console.log("getlidoDdata-----:", userReserveDataResp);
 
         if (
           userReserveDataResp &&
@@ -227,11 +220,10 @@ export const useGetLindoReserveData = ({
 };
 
 // 获取Lido APY
-const lidoAprUrl = "https://eth-api.lido.fi/v1/protocol/steth/apr/last";
 export const useGetLidoApr = () => {
   return useQuery({
     queryKey: ["useGetLidoAprReq"],
-    queryFn: () => fetch(lidoAprUrl).then((res) => res.json()),
+    queryFn: () => fetch(LIDO_APR_URL).then((res) => res.json()),
     placeholderData: keepPreviousData,
     refetchInterval: 60000,
   });
@@ -240,95 +232,8 @@ export const useGetLidoApr = () => {
 // vaults-ui 的 deposit modal data context
 
 export const useDepositModal = () => {
-  const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
-  const { connection } = useConnection();
   const { solAddress, evmAddress } = useBolarityWalletProvider();
-
-  const onSendTransaction = async (
-    solanaPublicKey: PublicKey,
-    txPayload: any
-  ) => {
-    const provider = getProvider(
-      {
-        signTransaction,
-        signAllTransactions,
-        publicKey: solanaPublicKey,
-      },
-      connection
-    );
-    const program = new anchor.Program(IDL!, provider);
-
-    const NETWORK = "TESTNET";
-    const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
-    const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
-    const HELLO_WORLD_PID = program.programId;
-    console.log("CORE_BRIDGE_PID:", CORE_BRIDGE_PID.toString());
-    console.log("HELLO_WORLD_PID:", HELLO_WORLD_PID.toString());
-
-    const realConfig = deriveAddress([Buffer.from("config")], HELLO_WORLD_PID);
-    console.log("realConfig:", realConfig.toString());
-
-    const message2 = await getProgramSequenceTracker(
-      connection,
-      program.programId,
-      CORE_BRIDGE_PID
-    )
-      .then((tracker) =>
-        deriveAddress(
-          [
-            Buffer.from("sent"),
-            (() => writeBigUint64LE(tracker.sequence + BigInt(1)))(),
-          ],
-          HELLO_WORLD_PID
-        )
-      )
-      .catch((err) => {
-        toast.error("Failed to get program sequence tracker");
-        console.log("err:", err);
-      });
-
-    if (!message2) {
-      return;
-    }
-
-    const wormholeAccounts2 = getPostMessageCpiAccounts(
-      program.programId,
-      CORE_BRIDGE_PID,
-      solanaPublicKey,
-      message2
-    );
-    console.log("wormholeAccounts2:", wormholeAccounts2);
-
-    const message = hexStringToUint8Array(txPayload);
-    try {
-      const params = {
-        config: realConfig,
-        wormholeProgram: CORE_BRIDGE_PID,
-        ...wormholeAccounts2,
-      };
-      const ix1 = program.methods.sendMessage(Buffer.from(message));
-      const ix2 = ix1.accountsStrict(params);
-      const ix3 = await ix2.instruction();
-      const tx3 = new Transaction().add(ix3);
-      tx3.feePayer = solanaPublicKey;
-      tx3.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const signature = await sendTransaction(tx3, connection);
-      const latestBlockhash = await connection.getLatestBlockhash();
-
-      // Send transaction and await for signature
-      await connection.confirmTransaction(
-        { signature, ...latestBlockhash },
-        "confirmed"
-      );
-
-      return signature;
-      // appreove usdt success.
-    } catch (error: any) {
-      console.log("error:", error);
-      // toast.error('Transaction failed: ' + error.toString().substring(0, 100))
-    }
-  };
+  const { onSendTransaction } = useOnSendTransaction();
 
   const onApprove = async () => {
     const solanaPublicKey = new PublicKey(solAddress);
@@ -353,16 +258,20 @@ export const useDepositModal = () => {
       functionName: "approve",
       args: [AAVE_CONTRACT, APPROVE_BASE_AMOUNT],
     });
+    console.log("deposit--approve--paras:", paras);
+
     const payloadPart = encodeAbiParameters(
       [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
       [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
     );
+    console.log("deposit--approve--payloadPart:", payloadPart);
+
     // 6. Encode the final payload
     const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
     );
-
+    console.log("deposit--approve--txPayload:", txPayload);
     return onSendTransaction(solanaPublicKey, txPayload);
   };
 

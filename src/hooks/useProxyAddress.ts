@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { pad, toHex } from "viem";
-import { PublicKey, PublicKeyInitData } from "@solana/web3.js";
-import { hexStringToUint8Array, rightAlignBuffer } from "@/lib/utils";
-import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { ChainId } from "@certusone/wormhole-sdk";
+import { PublicKey } from "@solana/web3.js";
+import {
+  hexStringToUint8Array,
+  rightAlignBuffer,
+  deriveEthAddressKey,
+} from "@/lib/utils";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { publicClient } from "@/config/wagmi";
 import {
@@ -11,30 +13,12 @@ import {
   BOLARITY_SOLANA_CONTRACT,
   UNI_PROXY,
 } from "@/config";
-
-const deriveEthAddressKey = (
-  programId: PublicKeyInitData,
-  chain: ChainId,
-  address: PublicKey
-) => {
-  return deriveAddress(
-    [
-      Buffer.from("pda"),
-      (() => {
-        const buf = Buffer.alloc(2);
-        buf.writeUInt16LE(chain);
-        return buf;
-      })(),
-      address.toBuffer(),
-    ],
-    programId
-  );
-};
+import { SEPOLIA_CHAIN_ID } from "@/config/solala";
 
 let isSending = false;
 
 export const useProxyAddress = () => {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null as string | null);
   const { connection } = useConnection();
 
   const handleError = (err: unknown, fallbackMessage = "An error occurred") => {
@@ -91,13 +75,12 @@ export const useProxyAddress = () => {
 
         // Prepare Solana PDA
         const programId = new PublicKey(BOLARITY_SOLANA_CONTRACT);
-        const emitterChain = 10002; // Foreign emitter chain ID
         const ethAddress = rightAlignBuffer(
           Buffer.from(hexStringToUint8Array(evmAddress))
         );
         const addressKey = deriveEthAddressKey(
           programId,
-          emitterChain,
+          SEPOLIA_CHAIN_ID,
           new PublicKey(ethAddress)
         );
 

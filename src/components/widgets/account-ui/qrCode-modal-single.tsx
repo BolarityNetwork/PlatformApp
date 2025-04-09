@@ -1,6 +1,6 @@
-import { Copy, Check } from "lucide-react"
+import { Copy, Check } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -9,55 +9,55 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { QRCodeCanvas } from "qrcode.react";
+import { cn } from "@/lib/utils";
 
-
-function QrCodeModalSingle({ open, onOpenChange, address, title }: { open: boolean, onOpenChange: (open: boolean) => void, address: string, title: string }) {
-
+function QrCodeModalSingle({
+  open,
+  onOpenChange,
+  address,
+  title,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  address: string;
+  title: string;
+}) {
   const { copiedText, copyToClipboard } = useCopyToClipboard();
 
-  const onChange = (open: boolean) => {
-    onOpenChange(open);
-  };
-
-
   return (
-    <Dialog open={open} onOpenChange={onChange}>
-
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button className={cn("w-[30%] md:w-[48%] font-bold")}>{title}</Button>
+      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Receive</DialogTitle>
           <DialogDescription>
             Share your address to request funds
-
           </DialogDescription>
         </DialogHeader>
         <div className="">
           <QRCodeCanvas value={address} size={208} className="mx-auto" />
         </div>
         <div className="flex items-center space-x-2">
-
-          <div className="grid flex-1 gap-2">
-
-            <Label htmlFor="link" className="sr-only">
-              Link
-            </Label>
-            <Input
-              id="link"
-              defaultValue={address}
-              readOnly
-            />
+          <div className="text-sm p-2 overflow-hidden text-ellipsis text-white border border-[#333333] bg-secondary rounded-xl">
+            {address}
           </div>
-          <Button type="submit" size="sm" className="px-3" onClick={() => copyToClipboard(address)}>
+          <Button
+            type="submit"
+            size="sm"
+            className="px-3"
+            onClick={() => copyToClipboard(address)}
+          >
             <span className="sr-only">Copy</span>
             {copiedText == address ? <Check /> : <Copy />}
           </Button>
         </div>
-        <DialogFooter className="sm:justify-start">
+        <DialogFooter className="flex justify-end">
           <DialogClose asChild>
             <Button type="button" variant="secondary">
               Close
@@ -66,8 +66,7 @@ function QrCodeModalSingle({ open, onOpenChange, address, title }: { open: boole
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
-
 
 export default QrCodeModalSingle;

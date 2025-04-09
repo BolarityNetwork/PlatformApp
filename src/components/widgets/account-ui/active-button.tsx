@@ -14,6 +14,7 @@ import {
   handleError,
   handleTransactionSuccess,
   hexStringToUint8Array,
+  solanaPayloadHead,
   writeBigUint64LE,
 } from "@/lib/utils";
 import * as anchor from "@coral-xyz/anchor";
@@ -25,10 +26,9 @@ import {
 } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { encodeAbiParameters, toHex } from "viem";
 
-import { CONTRACTS } from "@certusone/wormhole-sdk";
-
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 import { useFetchAddress } from "@/hooks/bolaryty/useFetchAddress";
+import { WORMHOLE_CONTRACTS } from "@/config/solala";
 
 const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
   const { signTransaction, signAllTransactions, sendTransaction } = useWallet();
@@ -49,10 +49,9 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
         [{ type: "bytes32" }],
         [toHex(Buffer.from(contractAddress))]
       );
-
       const payload = encodeAbiParameters(
-        [{ type: "bytes32" }, { type: "bytes" }],
-        [sourceAddress, toHex(Buffer.from([0]))]
+        [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+        [toHex(solanaPayloadHead), sourceAddress, toHex(Buffer.from([0]))]
       );
 
       const provider = getProvider(
@@ -61,11 +60,8 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
       );
 
       const program = new anchor.Program(IDL!, provider);
-      const NETWORK = "TESTNET";
-      const WORMHOLE_CONTRACTS = CONTRACTS[NETWORK];
       const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
       const HELLO_WORLD_PID = program.programId;
-
       const realConfig = deriveAddress(
         [Buffer.from("config")],
         HELLO_WORLD_PID
@@ -113,7 +109,6 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
         { signature, ...latestBlockhash },
         "confirmed"
       );
-
       // 需要刷新evm钱包地址
       refreshEvmAddress(signature);
     } catch (error) {
@@ -125,8 +120,25 @@ const ActiveEvmAccountButton = ({ solAddress }: { solAddress: string }) => {
   };
 
   const refreshEvmAddress = (signature: string) => {
+    let attemptCount = 0;
+    const maxAttempts = 60; // 1 minute timeout (60 seconds)
+
     const intervalId = setInterval(() => {
+      attemptCount++;
+
+      // Check if we've exceeded the timeout period
+      if (attemptCount >= maxAttempts) {
+        clearInterval(intervalId);
+        setRefreshing(false);
+        handleError(
+          new Error("Timeout: Failed to activate account after 1 minute"),
+          "Activation timed out"
+        );
+        return;
+      }
+
       fetchProxyEvmAddress(solAddress).then((res) => {
+        console.log("res", res);
         if (res) {
           clearInterval(intervalId);
           EvmRefreshProxyAddress();

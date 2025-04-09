@@ -1,8 +1,10 @@
 import { pad, toHex } from "viem";
-import { PublicKey, PublicKeyInitData } from "@solana/web3.js";
-import { hexStringToUint8Array, rightAlignBuffer } from "@/lib/utils";
-import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { ChainId } from "@certusone/wormhole-sdk";
+import { PublicKey } from "@solana/web3.js";
+import {
+  hexStringToUint8Array,
+  rightAlignBuffer,
+  deriveEthAddressKey,
+} from "@/lib/utils";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { publicClient } from "@/config/wagmi";
 import {
@@ -11,24 +13,7 @@ import {
   UNI_PROXY,
 } from "@/config";
 
-const deriveEthAddressKey = (
-  programId: PublicKeyInitData,
-  chain: ChainId,
-  address: PublicKey
-) => {
-  return deriveAddress(
-    [
-      Buffer.from("pda"),
-      (() => {
-        const buf = Buffer.alloc(2);
-        buf.writeUInt16LE(chain);
-        return buf;
-      })(),
-      address.toBuffer(),
-    ],
-    programId
-  );
-};
+import { SEPOLIA_CHAIN_ID } from "@/config/solala";
 export const useFetchAddress = () => {
   const { connection } = useConnection();
 
@@ -75,13 +60,13 @@ export const useFetchAddress = () => {
       console.log("FetchSolanaAddress starting...");
 
       const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
-      const realForeignEmitterChain = 10002;
+
       const ethAddress = rightAlignBuffer(
         Buffer.from(hexStringToUint8Array(evmAddress))
       );
       const addressKey = deriveEthAddressKey(
         HELLO_WORLD_PID,
-        realForeignEmitterChain,
+        SEPOLIA_CHAIN_ID,
         new PublicKey(ethAddress)
       );
       const accountInfo = await connection.getAccountInfo(addressKey);

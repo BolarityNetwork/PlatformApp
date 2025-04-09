@@ -26,6 +26,7 @@ import { toast } from "sonner";
 
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import {
+  CLAIM_TOKEN_CONTRACT,
   CurrencyEnum,
   EVM_USDC_CONTRACT,
   EVM_USDT_CONTRACT,
@@ -97,7 +98,7 @@ export const useGetBalance = () => {
     ],
     enabled: !!solAddress || !!evmAddress,
     queryFn: async (): Promise<BalanceData> => {
-      const data = {
+      let data = {
         solBalance: 0,
         solEthBalance: 0,
         solUsdtBalance: 0,
@@ -106,6 +107,7 @@ export const useGetBalance = () => {
         ethSolBalance: 0,
         ethUsdtBalance: 0,
         ethUsdcBalance: 0,
+        solBolBalance: 0,
       };
 
       if (solAddress) {
@@ -113,11 +115,13 @@ export const useGetBalance = () => {
         // 1. Get SOL balance
         try {
           const solBalance = await connection.getBalance(solPublicKey);
+          console.log("useAccount--- solBalance", solBalance);
           if (solBalance) {
             data.solBalance = Number(solBalance / LAMPORTS_PER_SOL);
           }
-        } catch (e) {
+        } catch (e: any) {
           console.log("get SOL Balance error:", e);
+          console.log("get SOL Balance error:", e.message);
         }
 
         // 2. Get SOL -> USDC balance
@@ -145,6 +149,25 @@ export const useGetBalance = () => {
           }
         }
 
+        // 3. Get SOL -> BOLARITY balance
+        // const SOL_BOLARITY_MINT_ADDRESS = getSolTokenMintAddress(
+        //   CurrencyEnum.BOLARITY,
+        //   cluster.name
+        // ); // Solana BOLARITY Mint 地址
+        try {
+          const solBolAddress = await getAssociatedTokenAddress(
+            // new PublicKey(SOL_BOLARITY_MINT_ADDRESS),
+            new PublicKey(CLAIM_TOKEN_CONTRACT),
+            solPublicKey
+          );
+          const solBolAccount = await getAccount(connection, solBolAddress);
+          console.log("useAccount---solBolAccount", solBolAccount);
+          if (solBolAccount) {
+            data.solBolBalance = Number(formatUnits(solBolAccount.amount, 9));
+          }
+        } catch (e) {
+          console.log("get SOL BOLARITY Account error:", e);
+        }
         // 3. Get SOL -> USDT balance
         // const SOL_USDT_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDT, cluster.name); // Solana USDT Mint 地址
         // const solUsdtAddress = await getAssociatedTokenAddress(

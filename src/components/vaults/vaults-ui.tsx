@@ -19,7 +19,11 @@ import {
   parseEther,
 } from "viem";
 import { PublicKey } from "@solana/web3.js";
-import { getExplorerLink, handleTransactionSuccess } from "@/lib/utils";
+import {
+  getExplorerLink,
+  handleTransactionSuccess,
+  solanaPayloadHead,
+} from "@/lib/utils";
 import { toast } from "sonner";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 import { useDepositModal } from "./vaults-data";
@@ -34,6 +38,7 @@ import {
 import { useWriteContract } from "wagmi";
 
 import { ETH_DEPOSIT_ABI, ETH_WITHDRAW_ABI } from "@/abis/AAveABI";
+import { useOnSendTransaction } from "@/hooks/useWormHole";
 
 const LIDO_STAKE_ABI = ["function stake(uint256 lockTime) external payable"];
 
@@ -277,7 +282,8 @@ export const LidoDepositModal = ({
   } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const { ChainType, solAddress } = useBolarityWalletProvider();
-  const { onSendTransaction } = useDepositModal();
+  const { onSendTransaction } = useOnSendTransaction();
+
   const { writeContract } = useWriteContract();
 
   const isEthSumbit = async (data: { amount: number }) => {
@@ -368,8 +374,8 @@ export const LidoDepositModal = ({
     );
 
     const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
     );
     const signature = await onSendTransaction(solanaPublicKey, txPayload);
     if (signature) {
