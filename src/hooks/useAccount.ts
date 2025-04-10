@@ -17,12 +17,11 @@ import {
   SystemProgram,
   Transaction,
   TransactionMessage,
-  TransactionSignature,
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { formatEther, formatUnits, erc20Abi } from "viem";
+import { formatEther, formatUnits, erc20Abi, watchBlockNumber } from "viem";
 import {
   CLAIM_TOKEN_CONTRACT,
   CurrencyEnum,
@@ -34,10 +33,11 @@ import {
 import { BalanceData } from "./atoms";
 import { publicClient } from "@/config/wagmi";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
+import { useEffect } from "react";
 
 const endpoint = `${process.env.NEXT_PUBLIC_RPC_URL}`;
 
-async function ethGetSPlTOkenAccount(address: string) {
+async function ethGetSplTokenAccount(address: string) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -77,14 +77,13 @@ export const useGetBalance = () => {
   const { connection } = useConnection();
   const { cluster } = useCluster();
   const { evmAddress, solAddress, ChainType } = useBolarityWalletProvider();
-  const globalChainType = ChainType == SupportChain.Ethereum;
+  const queryClient = useQueryClient();
+  const globalChainType = ChainType === SupportChain.Ethereum;
+
   const usePolling = !isWebSocketConnection(connection.rpcEndpoint);
 
-  return useQuery({
-    queryKey: [
-      "get-balance",
-      { endpoint: connection.rpcEndpoint, solAddress, evmAddress },
-    ],
+  const query = useQuery({
+    queryKey: ["get-balance", { endpoint: connection.rpcEndpoint, solAddress, evmAddress }],
     enabled: !!solAddress || !!evmAddress,
     queryFn: async (): Promise<BalanceData> => {
       let data: BalanceData = {
@@ -101,41 +100,34 @@ export const useGetBalance = () => {
 
       if (solAddress) {
         const solPublicKey = new PublicKey(solAddress);
-
         try {
           const solBalance = await connection.getBalance(solPublicKey);
           data.solBalance = Number(solBalance) / LAMPORTS_PER_SOL;
         } catch (e) {
-          console.log("get SOL Balance error:", e);
+          console.error("get SOL Balance error:", e);
         }
 
         try {
           const solUsdcMint = getSolTokenMintAddress(CurrencyEnum.USDC, cluster.name);
-          const solUsdcAddress = await getAssociatedTokenAddress(
-            new PublicKey(solUsdcMint),
-            solPublicKey
-          );
+          const solUsdcAddress = await getAssociatedTokenAddress(new PublicKey(solUsdcMint), solPublicKey);
           const solUsdcAccount = await getAccount(connection, solUsdcAddress);
           data.solUsdcBalance = Number(solUsdcAccount.amount) / 1e6;
         } catch (e) {
-          console.log("get SOL USDC Account error:", e);
+          console.error("get SOL USDC Account error:", e);
         }
 
         try {
-          const solBolAddress = await getAssociatedTokenAddress(
-            new PublicKey(CLAIM_TOKEN_CONTRACT),
-            solPublicKey
-          );
+          const solBolAddress = await getAssociatedTokenAddress(new PublicKey(CLAIM_TOKEN_CONTRACT), solPublicKey);
           const solBolAccount = await getAccount(connection, solBolAddress);
           data.solBolBalance = Number(formatUnits(solBolAccount.amount, 9));
         } catch (e) {
-          console.log("get SOL BOLARITY Account error:", e);
+          console.error("get SOL BOLARITY Account error:", e);
         }
       }
 
       if (globalChainType && evmAddress && solAddress) {
         try {
-          const resUsdc = await ethGetSPlTOkenAccount(solAddress);
+          const resUsdc = await ethGetSplTokenAccount(solAddress);
           if (resUsdc?.result?.value?.length) {
             const usdcAccount = resUsdc.result.value.find(
               (item: any) => item.account.data.parsed.info.owner === solAddress
@@ -145,7 +137,7 @@ export const useGetBalance = () => {
             }
           }
         } catch (e) {
-          console.log("eth proxy SPL token query error:", e);
+          console.error("eth proxy SPL token query error:", e);
         }
       }
 
@@ -154,7 +146,7 @@ export const useGetBalance = () => {
           const ethBalance = await publicClient.getBalance({ address: evmAddress as `0x${string}` });
           data.ethBalance = Number(formatEther(ethBalance));
         } catch (e) {
-          console.log("get ETH Balance error:", e);
+          console.error("get ETH Balance error:", e);
         }
 
         try {
@@ -166,7 +158,7 @@ export const useGetBalance = () => {
           });
           data.ethSolBalance = Number(formatUnits(wsolBalance, 9));
         } catch (e) {
-          console.log("get ETH WSOL Balance error:", e);
+          console.error("get ETH WSOL Balance error:", e);
         }
 
         try {
@@ -178,7 +170,7 @@ export const useGetBalance = () => {
           });
           data.ethUsdcBalance = Number(formatUnits(usdcBalance, 6));
         } catch (e) {
-          console.log("get ETH USDC Balance error:", e);
+          console.error("get ETH USDC Balance error:", e);
         }
 
         try {
@@ -190,7 +182,7 @@ export const useGetBalance = () => {
           });
           data.ethUsdtBalance = Number(formatUnits(usdtBalance, 6));
         } catch (e) {
-          console.log("get ETH USDT Balance error:", e);
+          console.error("get ETH USDT Balance error:", e);
         }
       }
 
@@ -200,6 +192,29 @@ export const useGetBalance = () => {
     refetchIntervalInBackground: usePolling,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (!solAddress || !connection.onAccountChange) return;
+    const publicKey = new PublicKey(solAddress);
+    const subscriptionId = connection.onAccountChange(publicKey, () => {
+      console.log("Solana账户变化，刷新余额");
+      queryClient.invalidateQueries({ queryKey: ["get-balance"] });
+    });
+    return () => connection.removeAccountChangeListener(subscriptionId);
+  }, [solAddress, connection]);
+
+  useEffect(() => {
+    if (!publicClient || !evmAddress) return;
+    const unwatch = watchBlockNumber(publicClient, {
+      onBlockNumber: () => {
+        console.log("以太坊新块刷新余额");
+        queryClient.invalidateQueries({ queryKey: ["get-balance"] });
+      },
+    });
+    return () => unwatch();
+  }, [publicClient, evmAddress]);
+
+  return query;
 };
 
 export const useTransferSol = ({ solPublicKey }: { solPublicKey?: PublicKey }) => {
@@ -212,17 +227,14 @@ export const useTransferSol = ({ solPublicKey }: { solPublicKey?: PublicKey }) =
     mutationKey: ["transfer-sol", { endpoint: connection.rpcEndpoint, solPublicKey }],
     mutationFn: async (input: { destination: PublicKey; amount: number }) => {
       if (!solPublicKey) return;
-
       const { transaction, latestBlockhash } = await createSolanaTransaction({
         publicKey: solPublicKey,
         destination: input.destination,
         amount: input.amount,
         connection,
       });
-
       const signature = await wallet.sendTransaction(transaction, connection);
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
-
       return signature;
     },
     onSuccess: (signature) => {
@@ -254,12 +266,9 @@ export const useTransferSolToken = ({ solPublicKey }: { solPublicKey?: PublicKey
     mutationKey: ["transfer-sol-token", { endpoint: connection.rpcEndpoint, solPublicKey }],
     mutationFn: async (input: { tokenMintPublicKey: PublicKey; destination: PublicKey; amount: number }) => {
       if (!solPublicKey) return;
-
       const senderTokenAccount = await getAssociatedTokenAddress(input.tokenMintPublicKey, solPublicKey);
       const recipientTokenAccount = await getAssociatedTokenAddress(input.tokenMintPublicKey, input.destination);
-
       const latestBlockhash = await connection.getLatestBlockhash();
-
       const transaction = new Transaction().add(
         createTransferInstruction(
           senderTokenAccount,
@@ -270,10 +279,8 @@ export const useTransferSolToken = ({ solPublicKey }: { solPublicKey?: PublicKey
           TOKEN_PROGRAM_ID
         )
       );
-
       const signature = await wallet.sendTransaction(transaction, connection);
       await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
-
       return signature;
     },
     onSuccess: (signature) => {
@@ -310,7 +317,6 @@ export const createSolanaTransaction = async ({
   latestBlockhash: { blockhash: string; lastValidBlockHeight: number };
 }> => {
   const latestBlockhash = await connection.getLatestBlockhash();
-
   const instructions = [
     SystemProgram.transfer({
       fromPubkey: publicKey,
@@ -318,13 +324,11 @@ export const createSolanaTransaction = async ({
       lamports: amount * LAMPORTS_PER_SOL,
     }),
   ];
-
   const messageLegacy = new TransactionMessage({
     payerKey: publicKey,
     recentBlockhash: latestBlockhash.blockhash,
     instructions,
   }).compileToLegacyMessage();
-
   return {
     transaction: new VersionedTransaction(messageLegacy),
     latestBlockhash,
