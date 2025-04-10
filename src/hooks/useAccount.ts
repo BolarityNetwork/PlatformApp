@@ -21,9 +21,7 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
 import { toast } from "sonner";
-
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import {
   CLAIM_TOKEN_CONTRACT,
@@ -33,43 +31,31 @@ import {
   EVM_WSOL_CONTRACT,
   SupportChain,
 } from "@/config";
-
 import { BalanceData } from "./atoms";
 import { publicClient } from "@/config/wagmi";
-
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 
 const endpoint = `${process.env.NEXT_PUBLIC_RPC_URL}`;
 
-// eth钱包登陆时。获取代理sol地址的余额代币
 async function ethGetSPlTOkenAccount(address: string) {
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
       method: "getTokenAccountsByOwner",
       params: [
         address,
-        {
-          programId: TOKEN_PROGRAM_ID,
-        },
-        {
-          encoding: "jsonParsed",
-        },
+        { programId: TOKEN_PROGRAM_ID },
+        { encoding: "jsonParsed" },
       ],
     }),
   });
   return await response.json();
 }
 
-export const getSolTokenMintAddress = (
-  tokenSymbol: string,
-  network: string
-) => {
+export const getSolTokenMintAddress = (tokenSymbol: string, network: string) => {
   const mintAddresses: Record<string, Record<string, string>> = {
     [ClusterNetwork.Mainnet]: {
       [CurrencyEnum.USDT]: "Es9vMFrzaCERUKHPvo1PiYVg3sboFev3K56CVNezj6ou",
@@ -80,16 +66,19 @@ export const getSolTokenMintAddress = (
       [CurrencyEnum.USDC]: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     },
   };
-
   return mintAddresses[network]?.[tokenSymbol];
 };
+
+function isWebSocketConnection(endpoint: string): boolean {
+  return endpoint.startsWith("ws");
+}
 
 export const useGetBalance = () => {
   const { connection } = useConnection();
   const { cluster } = useCluster();
-
   const { evmAddress, solAddress, ChainType } = useBolarityWalletProvider();
   const globalChainType = ChainType == SupportChain.Ethereum;
+  const usePolling = !isWebSocketConnection(connection.rpcEndpoint);
 
   return useQuery({
     queryKey: [
@@ -98,7 +87,7 @@ export const useGetBalance = () => {
     ],
     enabled: !!solAddress || !!evmAddress,
     queryFn: async (): Promise<BalanceData> => {
-      let data = {
+      let data: BalanceData = {
         solBalance: 0,
         solEthBalance: 0,
         solUsdtBalance: 0,
@@ -112,161 +101,94 @@ export const useGetBalance = () => {
 
       if (solAddress) {
         const solPublicKey = new PublicKey(solAddress);
-        // 1. Get SOL balance
+
         try {
           const solBalance = await connection.getBalance(solPublicKey);
-          console.log("useAccount--- solBalance", solBalance);
-          if (solBalance) {
-            data.solBalance = Number(solBalance / LAMPORTS_PER_SOL);
-          }
-        } catch (e: any) {
+          data.solBalance = Number(solBalance) / LAMPORTS_PER_SOL;
+        } catch (e) {
           console.log("get SOL Balance error:", e);
-          console.log("get SOL Balance error:", e.message);
         }
 
-        // 2. Get SOL -> USDC balance
-        const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(
-          CurrencyEnum.USDC,
-          cluster.name
-        ); // Solana USDC Mint address
-        let solUsdcAddress;
         try {
-          solUsdcAddress = await getAssociatedTokenAddress(
-            new PublicKey(SOL_USDC_MINT_ADDRESS),
+          const solUsdcMint = getSolTokenMintAddress(CurrencyEnum.USDC, cluster.name);
+          const solUsdcAddress = await getAssociatedTokenAddress(
+            new PublicKey(solUsdcMint),
             solPublicKey
           );
+          const solUsdcAccount = await getAccount(connection, solUsdcAddress);
+          data.solUsdcBalance = Number(solUsdcAccount.amount) / 1e6;
         } catch (e) {
-          console.log("getAssociatedTokenAddress error:", e);
-        }
-        if (solUsdcAddress) {
-          try {
-            const solUsdcAccount = await getAccount(connection, solUsdcAddress);
-            if (solUsdcAccount) {
-              data.solUsdcBalance = Number(solUsdcAccount.amount / BigInt(1e6));
-            }
-          } catch (e) {
-            console.log("get SOL USDC Account error:", e);
-          }
+          console.log("get SOL USDC Account error:", e);
         }
 
-        // 3. Get SOL -> BOLARITY balance
-        // const SOL_BOLARITY_MINT_ADDRESS = getSolTokenMintAddress(
-        //   CurrencyEnum.BOLARITY,
-        //   cluster.name
-        // ); // Solana BOLARITY Mint 地址
         try {
           const solBolAddress = await getAssociatedTokenAddress(
-            // new PublicKey(SOL_BOLARITY_MINT_ADDRESS),
             new PublicKey(CLAIM_TOKEN_CONTRACT),
             solPublicKey
           );
           const solBolAccount = await getAccount(connection, solBolAddress);
-          console.log("useAccount---solBolAccount", solBolAccount);
-          if (solBolAccount) {
-            data.solBolBalance = Number(formatUnits(solBolAccount.amount, 9));
-          }
+          data.solBolBalance = Number(formatUnits(solBolAccount.amount, 9));
         } catch (e) {
           console.log("get SOL BOLARITY Account error:", e);
         }
-        // 3. Get SOL -> USDT balance
-        // const SOL_USDT_MINT_ADDRESS = getSolTokenMintAddress(CurrencyEnum.USDT, cluster.name); // Solana USDT Mint 地址
-        // const solUsdtAddress = await getAssociatedTokenAddress(
-        //   new PublicKey(SOL_USDT_MINT_ADDRESS),
-        //   solPublicKey
-        // );
-        // const solUsdtAccount = await getAccount(connection, solUsdtAddress);
-        // if (solUsdtAccount) {
-        //   data.solUsdtBalance = Number(solUsdtAccount.amount / BigInt(1e6));
-        // }
       }
 
-      // 为什么要用这方法？因为eth代理 sol地址的时候，需要用ethGetSPlTOkenAccount
       if (globalChainType && evmAddress && solAddress) {
-        const resUsdc = await ethGetSPlTOkenAccount(solAddress);
-        console.log("resUsdc:", resUsdc);
-        if (
-          resUsdc &&
-          resUsdc.result &&
-          resUsdc.result.value &&
-          resUsdc.result.value.length > 0
-        ) {
-          const usdcAddressSpl = resUsdc.result.value.filter(
-            (item: any) => item.account.data.parsed.info.owner === solAddress
-          )[0].account.data.parsed.info.tokenAmount.uiAmount;
-          console.log("usdcAddressSpl:", usdcAddressSpl);
-          if (usdcAddressSpl) {
-            data.solUsdcBalance = usdcAddressSpl;
+        try {
+          const resUsdc = await ethGetSPlTOkenAccount(solAddress);
+          if (resUsdc?.result?.value?.length) {
+            const usdcAccount = resUsdc.result.value.find(
+              (item: any) => item.account.data.parsed.info.owner === solAddress
+            );
+            if (usdcAccount) {
+              data.solUsdcBalance = usdcAccount.account.data.parsed.info.tokenAmount.uiAmount;
+            }
           }
+        } catch (e) {
+          console.log("eth proxy SPL token query error:", e);
         }
       }
 
       if (isValidEvmAddress(evmAddress) && publicClient) {
-        // 1. Get ETH balance
         try {
-          const ethBalance = await publicClient.getBalance({
-            address: evmAddress as `0x${string}`,
-          });
-          if (ethBalance) {
-            data.ethBalance = Number(formatEther(ethBalance));
-          }
+          const ethBalance = await publicClient.getBalance({ address: evmAddress as `0x${string}` });
+          data.ethBalance = Number(formatEther(ethBalance));
         } catch (e) {
           console.log("get ETH Balance error:", e);
         }
 
-        // 2. Get ETH -> SOL balance
         try {
           const wsolBalance = await publicClient.readContract({
-            address: EVM_WSOL_CONTRACT as `0x${string}`,
+            address: EVM_WSOL_CONTRACT,
             abi: erc20Abi,
             functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
-          if (wsolBalance) {
-            data.ethSolBalance = Number(formatUnits(wsolBalance, 9));
-          }
+          data.ethSolBalance = Number(formatUnits(wsolBalance, 9));
         } catch (e) {
-          console.log("get ETH SOL Balance error:", e);
+          console.log("get ETH WSOL Balance error:", e);
         }
 
-        // 3. Get ETH -> USDC balance
         try {
-          const ethUsdcDecimals = 6;
-          // const ethUsdcDecimals = await client.readContract({
-          //   address: USDC_CONTRACT,
-          //   abi: erc20Abi,
-          //   functionName: 'decimals',
-          //   args: [],
-          // })
-          // console.log('ethUsdcDecimals:', ethUsdcDecimals)
-          const ethUsdcBalance = await publicClient.readContract({
+          const usdcBalance = await publicClient.readContract({
             address: EVM_USDC_CONTRACT,
             abi: erc20Abi,
             functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
-          if (ethUsdcBalance) {
-            data.ethUsdcBalance = Number(
-              formatUnits(ethUsdcBalance, ethUsdcDecimals)
-            );
-          }
+          data.ethUsdcBalance = Number(formatUnits(usdcBalance, 6));
         } catch (e) {
           console.log("get ETH USDC Balance error:", e);
         }
 
-        // 4. Get ETH -> USDT balance
         try {
-          const ethUsdtDecimals = 6;
-          const ethUsdtBalance = await publicClient.readContract({
+          const usdtBalance = await publicClient.readContract({
             address: EVM_USDT_CONTRACT,
             abi: erc20Abi,
             functionName: "balanceOf",
             args: [evmAddress as `0x${string}`],
           });
-          if (ethUsdtBalance) {
-            data.ethUsdtBalance = Number(
-              formatUnits(ethUsdtBalance, ethUsdtDecimals)
-            );
-          }
+          data.ethUsdtBalance = Number(formatUnits(usdtBalance, 6));
         } catch (e) {
           console.log("get ETH USDT Balance error:", e);
         }
@@ -274,231 +196,101 @@ export const useGetBalance = () => {
 
       return data;
     },
-    refetchInterval: 10000,
-    refetchIntervalInBackground: true,
+    refetchInterval: usePolling ? 10000 : false,
+    refetchIntervalInBackground: usePolling,
     refetchOnWindowFocus: false,
   });
 };
 
-export const useTransferSol = ({
-  solPublicKey,
-}: {
-  solPublicKey?: PublicKey;
-}) => {
+export const useTransferSol = ({ solPublicKey }: { solPublicKey?: PublicKey }) => {
   const { connection } = useConnection();
   const { getExplorerUrl } = useCluster();
   const wallet = useWallet();
   const client = useQueryClient();
 
   return useMutation({
-    mutationKey: [
-      "transfer-sol",
-      {
-        endpoint: connection.rpcEndpoint,
-        solPublicKey: solPublicKey?.toString(),
-      },
-    ],
+    mutationKey: ["transfer-sol", { endpoint: connection.rpcEndpoint, solPublicKey }],
     mutationFn: async (input: { destination: PublicKey; amount: number }) => {
-      let signature: TransactionSignature = "";
-      try {
-        if (solPublicKey) {
-          const { transaction, latestBlockhash } =
-            await createSolanaTransaction({
-              publicKey: solPublicKey,
-              destination: input.destination,
-              amount: input.amount,
-              connection,
-            });
+      if (!solPublicKey) return;
 
-          // Send transaction and await for signature
-          signature = await wallet.sendTransaction(transaction, connection);
+      const { transaction, latestBlockhash } = await createSolanaTransaction({
+        publicKey: solPublicKey,
+        destination: input.destination,
+        amount: input.amount,
+        connection,
+      });
 
-          // Send transaction and await for signature
-          await connection.confirmTransaction(
-            { signature, ...latestBlockhash },
-            "confirmed"
-          );
+      const signature = await wallet.sendTransaction(transaction, connection);
+      await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
 
-          return signature;
-        }
-      } catch (error: unknown) {
-        console.log("error", `Transaction failed! ${error}`, signature);
-
-        return;
-      }
+      return signature;
     },
     onSuccess: (signature) => {
       if (signature) {
-        toast.success("Transaction Successfull", {
+        toast.success("Transaction Successful", {
           description: ellipsify(signature),
-          action: {
-            label: "Explorer Link",
-            onClick: () =>
-              window.open(getExplorerUrl(`tx/${signature}`), "_blank"),
-          },
-          duration: 10000,
+          action: { label: "Explorer", onClick: () => window.open(getExplorerUrl(`tx/${signature}`), "_blank") },
         });
       }
       return Promise.all([
-        client.invalidateQueries({
-          queryKey: [
-            "get-balance",
-            { endpoint: connection.rpcEndpoint, solPublicKey },
-          ],
-        }),
-        client.invalidateQueries({
-          queryKey: [
-            "get-signatures",
-            { endpoint: connection.rpcEndpoint, solPublicKey },
-          ],
-        }),
+        client.invalidateQueries({ queryKey: ["get-balance"] }),
+        client.invalidateQueries({ queryKey: ["get-signatures"] }),
       ]);
     },
     onError: (error) => {
-      toast.error("Transaction Failed", {
-        description: `${error}`,
-        duration: 10000,
-      });
-      console.log("error", `Transaction failed! ${error}`);
+      toast.error("Transaction Failed", { description: String(error) });
+      console.error("Transaction failed:", error);
     },
   });
 };
 
-export const useTransferSolToken = ({
-  solPublicKey,
-}: {
-  solPublicKey?: PublicKey;
-}) => {
+export const useTransferSolToken = ({ solPublicKey }: { solPublicKey?: PublicKey }) => {
   const { connection } = useConnection();
   const { getExplorerUrl } = useCluster();
   const wallet = useWallet();
   const client = useQueryClient();
 
   return useMutation({
-    mutationKey: [
-      "transfer-sol-token",
-      {
-        endpoint: connection.rpcEndpoint,
-        solPublicKey: solPublicKey?.toString(),
-      },
-    ],
-    mutationFn: async (input: {
-      tokenMintPublicKey: PublicKey;
-      destination: PublicKey;
-      amount: number;
-    }) => {
-      let signature: TransactionSignature = "";
-      try {
-        if (solPublicKey) {
-          console.log(
-            "transfer sol token",
-            solPublicKey.toString(),
-            input.tokenMintPublicKey.toString(),
-            input.destination.toString(),
-            input.amount
-          );
+    mutationKey: ["transfer-sol-token", { endpoint: connection.rpcEndpoint, solPublicKey }],
+    mutationFn: async (input: { tokenMintPublicKey: PublicKey; destination: PublicKey; amount: number }) => {
+      if (!solPublicKey) return;
 
-          const senderTokenAccount = await getAssociatedTokenAddress(
-            input.tokenMintPublicKey,
-            solPublicKey
-          );
-          console.log("senderTokenAccount", senderTokenAccount.toString());
+      const senderTokenAccount = await getAssociatedTokenAddress(input.tokenMintPublicKey, solPublicKey);
+      const recipientTokenAccount = await getAssociatedTokenAddress(input.tokenMintPublicKey, input.destination);
 
-          let recipientTokenAccount = await getAssociatedTokenAddress(
-            input.tokenMintPublicKey,
-            input.destination
-          );
-          console.log(
-            "recipientTokenAccount",
-            recipientTokenAccount.toString()
-          );
+      const latestBlockhash = await connection.getLatestBlockhash();
 
-          if (!recipientTokenAccount) {
-            const _transaction = new Transaction().add(
-              createAssociatedTokenAccountInstruction(
-                solPublicKey,
-                input.destination,
-                input.destination,
-                input.tokenMintPublicKey
-              )
-            );
-            // Send transaction to create account
-            const _latestBlockhash = await connection.getLatestBlockhash();
-            const _signature = await wallet.sendTransaction(
-              _transaction,
-              connection
-            );
-            await connection.confirmTransaction(
-              { signature: _signature, ..._latestBlockhash },
-              "confirmed"
-            );
-          }
+      const transaction = new Transaction().add(
+        createTransferInstruction(
+          senderTokenAccount,
+          recipientTokenAccount,
+          solPublicKey,
+          input.amount * 1e6,
+          [],
+          TOKEN_PROGRAM_ID
+        )
+      );
 
-          if (recipientTokenAccount) {
-            const latestBlockhash = await connection.getLatestBlockhash();
-            const tx = new Transaction().add(
-              createTransferInstruction(
-                senderTokenAccount,
-                recipientTokenAccount,
-                solPublicKey,
-                input.amount * 10 ** 6, // Convert to smallest unit with decimal places
-                [],
-                TOKEN_PROGRAM_ID
-              )
-            );
-            // tx.feePayer = solPublicKey;
-            // tx.recentBlockhash = latestBlockhash.blockhash;
+      const signature = await wallet.sendTransaction(transaction, connection);
+      await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
 
-            // signature = await connection.simulateTransaction(tx);
-
-            signature = await wallet.sendTransaction(tx, connection);
-            await connection.confirmTransaction(
-              { signature, ...latestBlockhash },
-              "confirmed"
-            );
-
-            return signature;
-          }
-        }
-      } catch (error: unknown) {
-        console.log("error", `Transaction failed! ${error}`, signature);
-
-        return;
-      }
+      return signature;
     },
     onSuccess: (signature) => {
       if (signature) {
-        toast.success("Transaction Successfull", {
+        toast.success("Transaction Successful", {
           description: ellipsify(signature),
-          action: {
-            label: "Explorer Link",
-            onClick: () =>
-              window.open(getExplorerUrl(`tx/${signature}`), "_blank"),
-          },
-          duration: 10000,
+          action: { label: "Explorer", onClick: () => window.open(getExplorerUrl(`tx/${signature}`), "_blank") },
         });
       }
       return Promise.all([
-        client.invalidateQueries({
-          queryKey: [
-            "get-balance",
-            { endpoint: connection.rpcEndpoint, solPublicKey },
-          ],
-        }),
-        client.invalidateQueries({
-          queryKey: [
-            "get-signatures",
-            { endpoint: connection.rpcEndpoint, solPublicKey },
-          ],
-        }),
+        client.invalidateQueries({ queryKey: ["get-balance"] }),
+        client.invalidateQueries({ queryKey: ["get-signatures"] }),
       ]);
     },
     onError: (error) => {
-      toast.error("Transaction Failed", {
-        description: `${error}`,
-        duration: 10000,
-      });
-      console.log("error", `Transaction failed! ${error}`);
+      toast.error("Transaction Failed", { description: String(error) });
+      console.error("Transaction failed:", error);
     },
   });
 };
@@ -517,10 +309,8 @@ export const createSolanaTransaction = async ({
   transaction: VersionedTransaction;
   latestBlockhash: { blockhash: string; lastValidBlockHeight: number };
 }> => {
-  // Get the latest blockhash to use in our transaction
   const latestBlockhash = await connection.getLatestBlockhash();
 
-  // Create instructions to send, in this case a simple transfer
   const instructions = [
     SystemProgram.transfer({
       fromPubkey: publicKey,
@@ -529,42 +319,30 @@ export const createSolanaTransaction = async ({
     }),
   ];
 
-  // Create a new TransactionMessage with version and compile it to legacy
   const messageLegacy = new TransactionMessage({
     payerKey: publicKey,
     recentBlockhash: latestBlockhash.blockhash,
     instructions,
   }).compileToLegacyMessage();
 
-  // Create a new VersionedTransaction which supports legacy and v0
-  const transaction = new VersionedTransaction(messageLegacy);
-
   return {
-    transaction,
+    transaction: new VersionedTransaction(messageLegacy),
     latestBlockhash,
   };
 };
 
 export const useGetSignatures = ({ address }: { address: PublicKey }) => {
   const { connection } = useConnection();
-
   return useQuery({
     queryKey: ["get-signatures", { endpoint: connection.rpcEndpoint, address }],
     queryFn: () => connection.getSignaturesForAddress(address),
   });
 };
 
-export const useGetParsedTransactions = (
-  signatures: string[],
-  options?: { enabled: boolean }
-) => {
+export const useGetParsedTransactions = (signatures: string[], options?: { enabled: boolean }) => {
   const { connection } = useConnection();
-
   return useQuery({
-    queryKey: [
-      "get-parsed-transactions",
-      { endpoint: connection.rpcEndpoint, signatures },
-    ],
+    queryKey: ["get-parsed-transactions", { endpoint: connection.rpcEndpoint, signatures }],
     queryFn: () => connection.getParsedTransactions(signatures),
     ...options,
   });

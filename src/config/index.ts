@@ -71,7 +71,7 @@ export const ETH_CONTROLLED_SOL_TOKEN =
   process.env.NEXT_PUBLIC_WORMHOLE_EVM_CONTROLLED_TOKEN_BRIDGE!;
 
 // sol rpc url
-export const SOLANA_RPC_URL = `${process.env.NEXT_PUBLIC_RPC_URL}`;
+export const SOLANA_RPC_URL = `${process.env.NEXT_PUBLIC_SOLANA_RPC_WSS}`;
 
 // nft
 

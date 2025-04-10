@@ -1,5 +1,3 @@
-"use client";
-
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { clusterApiUrl, Connection } from "@solana/web3.js";
 import { atom, useAtomValue, useSetAtom } from "jotai";
@@ -33,25 +31,34 @@ export function toWalletAdapterNetwork(cluster?: ClusterNetwork): WalletAdapterN
   }
 }
 
-export const defaultClusters: Cluster[] = [  
+// 这里用环境变量优先，如果没有就 fallback 到 clusterApiUrl()
+const devnetEndpoint = process.env.NEXT_PUBLIC_SOLANA_DEVNET_WSS || clusterApiUrl("devnet");
+const testnetEndpoint = process.env.NEXT_PUBLIC_SOLANA_TESTNET_WSS || clusterApiUrl("testnet");
+const mainnetEndpoint = process.env.NEXT_PUBLIC_SOLANA_MAINNET_WSS || clusterApiUrl("mainnet-beta");
+
+export const defaultClusters: Cluster[] = [
   {
     name: "devnet",
-    endpoint: clusterApiUrl("devnet"),
+    endpoint: devnetEndpoint,
     network: ClusterNetwork.Devnet,
   },
   {
     name: "testnet",
-    endpoint: clusterApiUrl("testnet"),
+    endpoint: testnetEndpoint,
     network: ClusterNetwork.Testnet,
-  },  
-  { name: "local", endpoint: "http://localhost:8899" },  
+  },
+  {
+    name: "local",
+    endpoint: "ws://localhost:8900", // 本地节点 websocket
+  },
   {
     name: "mainnet",
-    endpoint: "",
+    endpoint: mainnetEndpoint,
     network: ClusterNetwork.Mainnet,
   },
 ];
 
+// 下面这些不用改！
 const clusterAtom = atomWithStorage<Cluster>("solana-cluster", defaultClusters[0]);
 const clustersAtom = atomWithStorage<Cluster[]>("solana-clusters", defaultClusters);
 
@@ -66,7 +73,6 @@ const activeClustersAtom = atom<Cluster[]>((get) => {
 
 const activeClusterAtom = atom<Cluster>((get) => {
   const clusters = get(activeClustersAtom);
-
   return clusters.find((item) => item.active) || clusters[0];
 });
 
@@ -96,7 +102,6 @@ export const ClusterProvider = ({ children }: { children: ReactNode }) => {
         setClusters([...clusters, cluster]);
       } catch (err) {
         console.error(err);
-        // toast.error(`${err}`);
       }
     },
     deleteCluster: (cluster: Cluster) => {
@@ -108,7 +113,7 @@ export const ClusterProvider = ({ children }: { children: ReactNode }) => {
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
-export const useCluster =()  =>  {
+export const useCluster = () => {
   return useContext(Context);
 }
 
@@ -128,6 +133,5 @@ function getClusterUrlParam(cluster: Cluster): string {
       suffix = `custom&customUrl=${encodeURIComponent(cluster.endpoint)}`;
       break;
   }
-
   return suffix.length ? `?cluster=${suffix}` : "";
 }
