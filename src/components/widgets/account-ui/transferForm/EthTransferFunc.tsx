@@ -1,7 +1,7 @@
 import { serialize } from "borsh";
 import { PublicKey } from "@solana/web3.js";
 import { useWriteContract } from "wagmi";
-import { 
+import {
   encodeAbiParameters,
   erc20Abi,
   parseUnits,
@@ -27,7 +27,7 @@ import {
 
 import { publicClient } from "@/config/wagmi";
 import { RawDataSchema, encodeMeta } from "@/config/solala";
-import { 
+import {
   handleTransactionSuccess,
   hexStringToUint8Array,
   rightAlignBuffer,
@@ -57,17 +57,7 @@ function EthTransferFunc() {
     refetchBalance();
   }
 
-  const ethereumTransferEthBalanceToSolana = async ({
-    to,
-    bridgeBalance,
-    evmAddress,
-    currentBalance,
-  }: {
-    to: string;
-    bridgeBalance: number;
-    evmAddress: string;
-    currentBalance: number;
-  }) => {
+  const ethereumTransferEthBalanceToSolana = async ({ to, bridgeBalance, evmAddress, currentBalance }: { to: string; bridgeBalance: number; evmAddress: string; currentBalance: number; }) => {
     try {
       const amount = bridgeBalance > currentBalance ? currentBalance - STATIC_AMOUNT : bridgeBalance;
       const amount_sol = bridgeBalance - currentBalance + STATIC_AMOUNT;
@@ -149,6 +139,22 @@ function EthTransferFunc() {
     }
   };
 
+  const ethTransferToSolApprove = async (balance: number, to: string, currentBalance_sol: number) => {
+    try {
+      const approveHash = await EthTransferApprove();
+      if (!approveHash) throw new Error("Approve Failed");
+      if (currentBalance_sol <= STATIC_AMOUNT) {
+        await ethTransferToSolBalanceToSolana(balance, to);
+      } else {
+        await ethereumTransferEthBalanceToSolana({ to, bridgeBalance: balance, evmAddress, currentBalance: currentBalance_sol });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Transfer after approve failed");
+      setIsOpen(false);
+    }
+  };
+
   async function ethTransferToSolBalanceToSolana(balance: number, to: string) {
     try {
       const amount = parseUnits(balance.toString(), 9);
@@ -169,6 +175,22 @@ function EthTransferFunc() {
     }
   }
 
+  const ethTransferCheckApprove = async (to: string, balance: number, currentBalance: number, s_type: number) => {
+    try {
+      const approveHash = await EthTransferApprove();
+      if (!approveHash) throw new Error("Approve Failed");
+      if (s_type) {
+        await ethereumTransferEthBalanceToSolana({ to, bridgeBalance: balance, evmAddress, currentBalance });
+      } else {
+        await ethereumCoontrollSolBalanceToEth({ to, balance, currentBalance });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Approve and transfer failed");
+      setIsOpen(false);
+    }
+  };
+
   async function ethereumCoontrollSolBalanceToEth({ to, balance, currentBalance, solCurrentBalance = 0 }: { to: string; balance: number; currentBalance: number; solCurrentBalance?: number; }) {
     try {
       const aParsed = parseUnits(balance.toString(), 9);
@@ -179,10 +201,12 @@ function EthTransferFunc() {
       const amount = (Number(formattedResult) === solCurrentBalance) ? (isStatus ? Number(formattedResult) - STATIC_AMOUNT : balance) : (isStatus ? Number(formattedResult) : balance);
       const amountInWei = parseUnits(amount.toString(), 9);
       const destinationPublicKey = Buffer.from(hexStringToUint8Array(to));
+
       const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
       const paras = Buffer.from("crosstsf");
       const encodedParams = Buffer.concat([paras, writeBigUint64LE(amountInWei), destinationPublicKey]);
       const ethAddress = rightAlignBuffer(Buffer.from(hexStringToUint8Array(evmAddress)));
+
       const realForeignEmitter = deriveAddress([
         Buffer.from("pda"),
         writeUInt16LE(WORMHOLE_EVM_CHAIN_ID),
@@ -202,6 +226,7 @@ function EthTransferFunc() {
         acc_meta: Buffer.from(encodeMeta),
       };
       const RawDataEncoded = Buffer.from(serialize(RawDataSchema, RawData));
+
       const txHash = await sendTransactionToEVM(RawDataEncoded);
       transactionStatus(txHash);
       await waitForTransactionConfirmation(txHash);
@@ -213,7 +238,7 @@ function EthTransferFunc() {
       }
     } catch (error) {
       console.error(error);
-      toast.error("Transaction failed");
+      toast.error("Cross transfer failed");
       setIsOpen(false);
     }
   }
@@ -230,25 +255,22 @@ function EthTransferFunc() {
       setIsOpen(false);
     } catch (e) {
       console.error(e);
-      toast.error("Transaction failed");
+      toast.error("Transfer failed");
       setIsOpen(false);
     }
   }
 
   async function sendTransactionToEVM(RawDataEncoded: Buffer): Promise<string> {
     return new Promise((resolve, reject) => {
-      writeContract(
-        {
-          address: BOLARITY_EVM_CONTRACT,
-          abi: UNI_PROXY.abi,
-          functionName: "sendMessage",
-          args: [toHex(Buffer.concat([sepoliaPayloadHead, RawDataEncoded]))],
-        },
-        {
-          onSuccess: (hash) => resolve(hash),
-          onError: (error) => reject(error),
-        }
-      );
+      writeContract({
+        address: BOLARITY_EVM_CONTRACT,
+        abi: UNI_PROXY.abi,
+        functionName: "sendMessage",
+        args: [toHex(Buffer.concat([sepoliaPayloadHead, RawDataEncoded]))],
+      }, {
+        onSuccess: (hash) => resolve(hash),
+        onError: (error) => reject(error),
+      });
     });
   }
 
