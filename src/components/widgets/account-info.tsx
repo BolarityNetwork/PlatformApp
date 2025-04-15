@@ -45,17 +45,19 @@ export const AccountInfo = () => {
       <div className="flex flex-row gap-x-4 items-center">
         <WalletLogo ChainType={ChainType || null} />
         <div className="flex flex-col items-center lg:items-start gap-y-2">
-          <p className="text-sm text-muted-foreground">Total portfolio value</p>
+          <p className="md:text-sm text-xs text-muted-foreground">
+            Total portfolio value
+          </p>
           <AccountBalance />
         </div>
       </div>
       <Separator orientation="vertical" className="hidden md:block" />
       <div className="flex flex-col items-center lg:items-start gap-y-2">
-        <p className="text-sm text-muted-foreground text-center lg:text-left">
+        <p className="md:text-sm text-xs text-muted-foreground text-center lg:text-left">
           Solana address
         </p>
         <div className="flex items-center gap-x-3">
-          <p className="text-2xl font-bold">
+          <p className="md:text-2xl text-sm font-bold">
             {(solAddress && ellipsify(solAddress)) || "-"}
           </p>
           <CopyButton text={solAddress || ""} />
@@ -63,11 +65,11 @@ export const AccountInfo = () => {
       </div>
       <Separator orientation="vertical" className="hidden md:block" />
       <div className="flex flex-col items-center lg:items-start gap-y-2">
-        <p className="text-sm text-muted-foreground text-center lg:text-left">
+        <p className="md:text-sm text-xs text-muted-foreground text-center lg:text-left">
           Evm address
         </p>
         <div className="flex items-center gap-x-3">
-          <p className="text-2xl font-bold">
+          <p className="md:text-2xl text-sm font-bold">
             {(evmAddress && ellipsify(evmAddress)) || "-"}
           </p>
           <CopyButton text={evmAddress || ""} />

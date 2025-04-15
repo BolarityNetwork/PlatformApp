@@ -1,5 +1,5 @@
-import { CurrencyEnum, SupportChain } from '@/config';
-import { atom } from 'jotai';
+import { CurrencyEnum, SupportChain } from "@/config";
+import { atom } from "jotai";
 
 export interface IWallet {
   chain: SupportChain | null;
@@ -12,19 +12,19 @@ export const isConnectedAtom = atom(false);
 
 export const walletAtom = atom<IWallet>({
   chain: null,
-  address: '',
-  evmAddress: '',
+  address: "",
+  evmAddress: "",
   disconnect: () => {},
 });
 
-
 export interface BalanceData {
-  solBalance: number,
-  solUsdtBalance: number,
-  solUsdcBalance: number,
-  ethBalance: number,
-  ethUsdtBalance: number,
-  ethUsdcBalance: number,
+  solBalance: number;
+  solUsdtBalance: number;
+  solUsdcBalance: number;
+  ethBalance: number;
+  ethUsdtBalance: number;
+  ethUsdcBalance: number;
+  solBolBalance: number;
 }
 const defaultBalanceData = {
   solBalance: 0,
@@ -33,8 +33,9 @@ const defaultBalanceData = {
   ethBalance: 0,
   ethUsdtBalance: 0,
   ethUsdcBalance: 0,
-}
-export const accountBalanceDataAtom = atom<BalanceData>(defaultBalanceData)
+  solBolBalance: 0,
+};
+export const accountBalanceDataAtom = atom<BalanceData>(defaultBalanceData);
 
 export interface FeedInfo {
   logo: string;
@@ -44,7 +45,7 @@ export interface FeedInfo {
   formattedPrice: string;
   network: string;
   change24h: number;
-};
+}
 
 export type FeedsType = {
   [key in CurrencyEnum]: FeedInfo;
@@ -87,6 +88,14 @@ const defaultFeedsData: FeedsType = {
     network: "",
     change24h: 0,
   },
+  [CurrencyEnum.BOLARITY]: {
+    logo: "/bol.svg",
+    symbol: "BOL",
+    name: "Bolarity",
+    price: 1,
+    formattedPrice: "0",
+    network: "Solana",
+    change24h: 0,
+  },
 };
-export const feedsDataAtom = atom<FeedsType>(defaultFeedsData)
-
+export const feedsDataAtom = atom<FeedsType>(defaultFeedsData);

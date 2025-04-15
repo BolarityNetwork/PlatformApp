@@ -7,7 +7,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import TransferForm from "./lib/TransferForm";
+import TransferForm from "./transferForm/index";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
 const SendModal = ({
   accountBalance,
@@ -29,8 +29,8 @@ const SendModal = ({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onChange}>
-      <AlertDialogContent className="sm:max-w-m px-8">
-        <AlertDialogTitle className="text-2xl font-semibold">
+      <AlertDialogContent className="sm:max-w-m px-4 md:px-8">
+        <AlertDialogTitle className="text-lg md:text-2xl font-semibold">
           Transfer
         </AlertDialogTitle>
         {ChainType && (

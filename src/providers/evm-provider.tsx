@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { wagmiConfig } from "@/config/wagmi";
 import { sepolia } from "wagmi/chains";
-import { switchChain } from "@wagmi/core";
-import { useEffect, useCallback, PropsWithChildren } from "react";
+import { State, switchChain } from "@wagmi/core";
+import { useEffect, useCallback } from "react";
 import {
   WagmiProvider,
   useConnect,
@@ -55,7 +55,7 @@ export const EvmConnectModal = ({
   const { connectAsync } = useConnectEvm();
   const { chain, isConnected } = useEvmAccount();
   const { disconnectAsync } = useDisconnectEvm();
-  const { setIconUrl } = useWidgetsProvider()
+  const { setIconUrl } = useWidgetsProvider();
 
   // 切换到指定网络（sepolia）
   const ensureCorrectChain = useCallback(async () => {
@@ -86,8 +86,8 @@ export const EvmConnectModal = ({
         }
         const address = res.accounts[0];
         onConnected(address, disconnectAsync);
-        console.log('connector.icon---', connector.icon)
-        setIconUrl(connector.icon)
+        console.log("connector.icon---", connector.icon);
+        setIconUrl(connector.icon);
       } catch (err: any) {
         console.error("Connection error:", err);
         toast.error("Failed to connect: " + err.message);
@@ -100,10 +100,10 @@ export const EvmConnectModal = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[350px] md:max-w-sm p-6 border-0 bg-theme-light dark:bg-darkmode-theme-light">
         <DialogHeader>
-          <DialogTitle>
-            <span className="text-xl">Connect Wallet</span>
+          <DialogTitle asChild>
+            <div className="text-xl">Connect Wallet</div>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription asChild>
             <div className="flex flex-col gap-3 py-4">
               {connectors.map((connector) => (
                 <WalletConnectButton
@@ -122,11 +122,11 @@ export const EvmConnectModal = ({
   );
 };
 
+type Props = {
+  children: React.ReactNode;
+  initialState?: State | undefined;
+};
 // 组件: EVM Provider
-export const EvmProvider = ({ children }: PropsWithChildren) => {
-  return (
-    <WagmiProvider config={wagmiConfig} reconnectOnMount>
-      {children}
-    </WagmiProvider>
-  );
+export const EvmProvider = ({ initialState, children }: Props) => {
+  return <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>;
 };

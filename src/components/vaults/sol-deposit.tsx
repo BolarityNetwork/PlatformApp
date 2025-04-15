@@ -16,20 +16,19 @@ import {
   bytesToHex,
 } from "viem";
 import { PublicKey } from "@solana/web3.js";
-import { getExplorerLink, handleTransactionSuccess } from "@/lib/utils";
+import { solanaPayloadHead } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useDepositModal } from "./vaults-data";
-import { AAVE_CONTRACT, EVM_USDT_CONTRACT } from "@/config";
+
+import {
+  AAVE_CONTRACT,
+  APPROVE_BASE_AMOUNT,
+  EVM_USDT_CONTRACT,
+} from "@/config";
 
 import { SubmitButton } from "./vaults-ui";
-
-const DEPOSIT_ABI = [
-    "function supply(address asset,uint256 amount,address onBehalfOf,uint16 referralCode)",
-  ],
-  WITHDRAW_ABI = [
-    "function withdraw(address asset,uint256 amount, address to)",
-  ];
+import { useDappInitProgram } from "@/hooks/transfer/solMethod";
+import { DEPOSIT_ABI, USDT_APPROVE_ABI, WITHDRAW_ABI } from "./vaults-data";
 
 //aave  存款 提现 弹框
 export const SolDeposit = ({
@@ -44,9 +43,18 @@ export const SolDeposit = ({
   isDeposit: boolean;
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { evmAddress, solAddress } = useBolarityWalletProvider();
-  const { CheckApproveTransfer, onApprove, onSendTransaction } =
-    useDepositModal();
+  const { evmAddress, solAddress, CheckUSDTApproveTransfer } =
+    useBolarityWalletProvider();
+
+  const { initialize } = useDappInitProgram();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+  } = useForm();
   const onChange = (open: boolean) => {
     onOpenChange(open);
     reset();
@@ -57,37 +65,118 @@ export const SolDeposit = ({
     reset();
   };
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    setValue,
-  } = useForm();
+  const onApprove = async () => {
+    toast.info(`You need approved to ${AAVE_CONTRACT}`);
 
+    const solanaPublicKey = new PublicKey(solAddress);
+    const userAddress = encodeAbiParameters(
+      [{ type: "bytes32" }],
+      [toHex(Buffer.from(solanaPublicKey.toBytes()))]
+    );
+    const contractAddressPadded = pad(toHex(toBytes(EVM_USDT_CONTRACT)), {
+      size: 32,
+      dir: "left",
+    });
+    const contractAddress = encodeAbiParameters(
+      [{ type: "bytes32" }],
+      [contractAddressPadded]
+    );
+    // 解析 ABI
+    const iface = parseAbi(USDT_APPROVE_ABI);
+    // 使用 encodeFunctionData 编码函数调用数据
+    const paras = encodeFunctionData({
+      abi: iface,
+      functionName: "approve",
+      args: [AAVE_CONTRACT, APPROVE_BASE_AMOUNT],
+    });
+    console.log("deposit--approve--paras:", paras);
+
+    const payloadPart = encodeAbiParameters(
+      [{ type: "bytes32" }, { type: "uint256" }, { type: "bytes" }],
+      [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
+    );
+    console.log("deposit--approve--payloadPart:", payloadPart);
+
+    // 6. Encode the final payload
+    const txPayload = encodeAbiParameters(
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
+    );
+    console.log("deposit--approve--txPayload:", txPayload);
+
+    try {
+      const signature = await initialize.mutateAsync({
+        message: txPayload,
+        solPublicKey: solanaPublicKey,
+        title: "Approve",
+      });
+      console.log("激活evm--", signature);
+      return signature;
+    } catch (e: unknown) {
+      console.log("approve---", e);
+    }
+  };
+
+  /**
+   * 处理操作失败情况，显示错误信息并关闭模态框
+   * @param message 要显示的错误消息
+   */
+  const handleError = (message: string) => {
+    toast.error(message);
+    controllModal(false);
+  };
+
+  /**
+   * 等待代币授权确认，设置超时机制
+   * @param maxAttempts 最大尝试次数
+   * @param intervalMs 每次尝试间隔（毫秒）
+   * @returns 返回一个Promise，解析为授权状态的布尔值
+   */
+  const waitForApprovalConfirmation = async (
+    maxAttempts = 30,
+    intervalMs = 1000
+  ): Promise<boolean> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const isApproved = await CheckUSDTApproveTransfer();
+      if (isApproved) return true;
+
+      // 等待下次尝试
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+
+    // 超时返回失败
+    return false;
+  };
+
+  /**
+   * 处理表单提交
+   */
   const onSubmit = async (data: { amount: number }) => {
-    setIsLoading(true);
-    console.log("desposit----allowanceData");
-    // 判断是否需要授权
-    if (!(await CheckApproveTransfer())) {
-      console.log("desposit--check--allowanceData");
+    try {
+      setIsLoading(true);
 
-      const confirmApprove = await onApprove();
-      console.log("desposit---confirmApprove", confirmApprove);
-      if (confirmApprove) {
-        const intervalTime = setInterval(async () => {
-          if (await CheckApproveTransfer()) {
-            clearInterval(intervalTime);
-            toast.success("Approve Success");
-            onSubmit_base(data);
-          }
-        }, 1000);
-      } else {
-        toast.error("Approve Failed");
-        controllModal(false);
+      // 检查是否已授权
+      if (!(await CheckUSDTApproveTransfer())) {
+        // 需要授权
+        if (!(await onApprove())) {
+          // 授权请求失败
+          return handleError("Approve failed");
+        }
+
+        // 等待授权确认
+        if (!(await waitForApprovalConfirmation())) {
+          // 授权确认超时
+          return handleError("Approve timeout");
+        }
+
+        toast.success("Approve success");
       }
-    } else {
-      onSubmit_base(data);
+
+      // 授权完成或无需授权，执行基础提交逻辑
+      await onSubmit_base(data);
+    } catch (error) {
+      console.error("存款错误:", error);
+      handleError("Deposit failed");
     }
   };
 
@@ -96,6 +185,7 @@ export const SolDeposit = ({
     const { amount } = data;
 
     const title = isDeposit ? "Deposit " : "Withdraw ";
+    console.log("Form---solana title:", title);
 
     const solanaPublicKey = new PublicKey(solAddress);
     const userAddress = encodeAbiParameters(
@@ -130,21 +220,23 @@ export const SolDeposit = ({
       [contractAddress, BigInt(0), bytesToHex(toBytes(paras))]
     );
     const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
     );
-    const signature = await onSendTransaction(solanaPublicKey, txPayload);
-    if (signature) {
-      setTimeout(() => {
-        handleTransactionSuccess(
-          signature,
-          getExplorerLink("tx", signature, "devnet"),
-          title
-        );
+
+    try {
+      const signature = await initialize.mutateAsync({
+        message: txPayload,
+        solPublicKey: solanaPublicKey,
+        title,
+      });
+      console.log("激活evm--", signature);
+      if (signature) {
         // 关闭状态
         controllModal(false);
-      }, 3000);
-    } else {
+      }
+    } catch (e) {
+      console.log("approve---", e);
       toast.error(title + " Failed.");
       controllModal(false);
     }
@@ -152,7 +244,7 @@ export const SolDeposit = ({
 
   return (
     <Dialog open={open} onOpenChange={onChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogTitle>{isDeposit ? "Deposit" : "Withdraw"} USDT</DialogTitle>
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -161,7 +253,7 @@ export const SolDeposit = ({
             controllModal(false);
           }}
         >
-          <div className="grid gap-y-4 p-4">
+          <div className="grid gap-y-4 md:p-4">
             <div className="flex flex-col gap-y-2 mt-2">
               <Label htmlFor="amount" className="text-gray-500">
                 Amount
@@ -172,17 +264,31 @@ export const SolDeposit = ({
                   placeholder="Input amount"
                   className="py-6"
                   type="number"
+                  autoComplete="off"
+                  enctype="application/x-www-form-urlencoded"
                   step="any"
                   {...register("amount", {
-                    required: true,
-                    min: 0,
-                    max: evmUsdtBalance,
-                    validate: (value: any) =>
-                      (value > 0 && value <= evmUsdtBalance) ||
-                      "Amount must be greater than 0 and within balance",
+                    required: "Please enter an amount",
+                    // min: 0,
+                    // max: evmUsdtBalance,
+                    validate: (value: string) => {
+                      console.log("value:", value);
+                      if (!/^(0|[1-6]\d*)(\.\d{1,6})?$/.test(value)) {
+                        return "Invalid amount format (max 6 decimals, no leading zeros)";
+                      }
+                      const parsed = parseFloat(value);
+                      if (isNaN(parsed) || parsed <= 0)
+                        return "Please enter a valid amount";
+                      if (parsed > evmUsdtBalance)
+                        return "Insufficient balance";
+                      return true;
+                    },
                   })}
                 />
-                <Label className="ml-2 text-gray-500 text-xl" htmlFor="amount">
+                <Label
+                  className="ml-2 text-gray-500 md:text-xl"
+                  htmlFor="amount"
+                >
                   USDT
                 </Label>
               </div>
@@ -196,15 +302,8 @@ export const SolDeposit = ({
                 </span>
               </div>
               {/* 错误信息 */}
-              <div>
-                {errors.amount && (
-                  <span className="text-red-500 float-right">
-                    {errors.amount.type === "max" ||
-                    errors.amount.type === "validate"
-                      ? "Insufficient balance"
-                      : "Please enter a valid amount"}
-                  </span>
-                )}
+              <div className="text-red-500 text-xs">
+                {errors.amount && errors.amount.message}
               </div>
             </div>
             {/* Submit Button */}
@@ -212,6 +311,7 @@ export const SolDeposit = ({
               <Button
                 type="reset"
                 className="bg-gray-500 text-white px-4 py-2 rounded-md"
+                onClick={() => onChange(false)}
               >
                 Cancel
               </Button>
