@@ -75,9 +75,13 @@ export const columns: ColumnDef<Payment>[] = [
 ];
 
 export function DataTableDemo() {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [sorting, setSorting] = useState([] as SortingState[]);
+  const [columnFilters, setColumnFilters] = useState(
+    [] as ColumnFiltersState[]
+  );
+  const [columnVisibility, setColumnVisibility] = useState(
+    {} as VisibilityState
+  );
   const [rowSelection, setRowSelection] = useState({});
 
   const table = useReactTable({

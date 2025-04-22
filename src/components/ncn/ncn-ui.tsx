@@ -160,7 +160,8 @@ export const NCNInfo = () => {
   }, [finalTxData]);
 
   return (
-    <div className="h-auto lg:h-16 flex flex-col justify-evenly lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
+    // <div className="h-auto lg:h-16 flex flex-col md:flex-row justify-evenly lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
+    <div className="h-auto lg:h-16 flex flex-wrap md:flex-row justify-evenly lg:flex-row items-center gap-y-4 gap-x-4 md:gap-x-6 xl:gap-x-12">
       <StatCard label="NCN Operators" value={operatorCount} />
       {/* <Separator orientation="vertical" className="hidden md:block" /> */}
       <StatCard label="Relayers" value={relayerCount} />
@@ -206,11 +207,11 @@ const StatCard = ({
   copyStatus?: number | string;
 }) => (
   <div className="flex flex-col items-center lg:items-start gap-y-2">
-    <p className="text-sm text-muted-foreground text-center lg:text-left">
+    <p className="md:text-sm text-xs text-muted-foreground text-center lg:text-left">
       {label}
     </p>
     <div className="flex items-center gap-x-3">
-      <p className="text-2xl font-bold">
+      <p className="md:text-2xl text-sm font-bold">
         {(copyStatus && ellipsify(value?.toString())) || value}
       </p>
       {(copyStatus && <TooltipButton address={copyStatus} />) || ""}

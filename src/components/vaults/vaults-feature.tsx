@@ -34,12 +34,12 @@ import {
 import { useGetBalance } from "@/hooks/useAccount";
 import { useGetReserveData } from "./vaults-data";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { DepositModal, LidoDepositModal } from "./vaults-ui";
 import { SolDeposit } from "./sol-deposit";
 import { SupportChain } from "@/config";
-import { useEffect } from "react";
+import { FormatNumberWithDecimals } from "@/lib/utils";
 
 const VaultsFeature = () => {
   // aave deposit modal
@@ -52,7 +52,7 @@ const VaultsFeature = () => {
 
   const { data: accountBalance, refetch: refetchAccountBalance } =
     useGetBalance();
-  const { evmAddress, ChainType } = useBolarityWalletProvider();
+  const { evmAddress, ChainType, solAddress } = useBolarityWalletProvider();
 
   const { data: reservesData, refetch: refetchReserveData } = useGetReserveData(
     { evmAddress }
@@ -62,47 +62,67 @@ const VaultsFeature = () => {
   });
   const { data: lidoAprData } = useGetLidoApr();
 
-  const handleRefresh = async () => {
-    await refetchAccountBalance();
-    await refetchReserveData();
-    await refetchLindoData();
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+
+    setTimeout(() => {
+      // 重新获取数据
+      refetchAccountBalance();
+      refetchReserveData();
+      refetchLindoData();
+      setIsRefreshing(false);
+    }, 1000);
   };
 
   useEffect(() => {
-    if (ChainType) {
-      handleRefresh();
+    if (ChainType && solAddress && evmAddress) {
       console.log("ChainType-vaults--刷新了");
+      handleRefresh();
     }
-  }, [ChainType]);
+  }, [ChainType, solAddress, evmAddress]);
 
   const getBalance = useMemo(() => {
-    if (ChainType && evmAddress)
-      return {
-        // solanaUsdt: accountBalance?.solUsdtBalance,
-        evmUsdt: accountBalance?.ethUsdtBalance,
-        depositedUsdt: reservesData?.usdt.balance || 0,
-        apyUsdt: reservesData?.usdt.apy || "-",
-        dailyUsdt: reservesData?.usdt.daily || "-",
-      };
-    return {
-      // solanaUsdt: 0,
-      evmUsdt: 0,
-      depositedUsdt: 0,
-      apyUsdt: "-",
-      dailyUsdt: "-",
-    };
-  }, [accountBalance, reservesData, ChainType]);
+    return ChainType && solAddress && evmAddress
+      ? {
+          evmUsdt: accountBalance?.ethUsdtBalance,
+          depositedUsdt: reservesData?.usdt.balance,
+          apyUsdt: reservesData?.usdt.apy,
+          dailyUsdt: reservesData?.usdt.daily,
+        }
+      : {
+          evmUsdt: 0,
+          depositedUsdt: 0,
+          apyUsdt: "-",
+          dailyUsdt: "-",
+        };
+  }, [
+    accountBalance?.ethUsdtBalance,
+    reservesData?.usdt?.balance,
+    reservesData?.usdt?.apy,
+    reservesData?.usdt?.daily,
+    ChainType,
+    evmAddress,
+    solAddress,
+  ]);
 
   const getLidoBalance = useMemo(() => {
     if (ChainType && evmAddress)
       return {
         apyUsdt: lidoAprData?.data?.apr ? lidoAprData?.data?.apr + "%" : "-",
         evmUsdt:
+          // (accountBalance?.ethBalance && accountBalance?.ethBalance) || 0,
           (accountBalance?.ethBalance &&
-            accountBalance?.ethBalance.toFixed(9)) ||
+            FormatNumberWithDecimals(accountBalance?.ethBalance, 4, 6)) ||
           0,
+        // depositedUsdt: lidoData
+        //   ? Number(formatEther(lidoData[0] + lidoData[1], "wei")).toFixed(6)
+        //   : 0,
         depositedUsdt: lidoData
-          ? Number(formatEther(lidoData[0] + lidoData[1], "wei")).toFixed(6)
+          ? FormatNumberWithDecimals(
+              Number(formatEther(lidoData[0] + lidoData[1], "wei")),
+              4,
+              6
+            )
           : 0,
         dailyUsdt: lidoAprData?.data?.apr
           ? (lidoAprData?.data?.apr / 365).toFixed(3) + "%"
@@ -114,7 +134,9 @@ const VaultsFeature = () => {
       depositedUsdt: 0,
       dailyUsdt: "-",
     };
-  }, [lidoAprData, lidoData, accountBalance, ChainType]);
+  }, [lidoAprData, lidoData, accountBalance, ChainType, evmAddress]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   return (
     <main className="container">
       <div className="padding-y flex flex-col gap-y-4 md:gap-y-8 xl:gap-y-12">
@@ -129,8 +151,14 @@ const VaultsFeature = () => {
               size="icon"
               className="rounded-full"
               onClick={handleRefresh}
+              disabled={isRefreshing}
+              aria-label="Refresh NFT collection"
             >
-              <RefreshCcwIcon className="h-5 w-5 text-primary" />
+              <RefreshCcwIcon
+                className={`h-5 w-5 ${
+                  isRefreshing ? "animate-spin text-gray-400" : "text-primary"
+                }`}
+              />
             </Button>
           </div>
           <Table className="mt-0 md:mt-4">
@@ -213,15 +241,9 @@ const VaultsFeature = () => {
               <TableRow>
                 <TableCell className="p-3 lg:w-[100px] xl:w-[160px]">
                   <div className="flex gap-2 items-center">
-                    {/* <Image
-                      src="/ethereum.svg"
-                      alt="ETH"
-                      width={24}
-                      height={24}
-                    /> */}
                     <FaEthereum size={24} />
 
-                    <h4 className="xl:text-lg ">ETH</h4>
+                    <div className="xl:text-lg ">ETH</div>
                   </div>
                 </TableCell>
                 <TableCell className="p-3lg:w-[100px] xl:w-[160px]">

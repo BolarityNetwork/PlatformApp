@@ -41,7 +41,7 @@ import { CurrencyEnum, SupportChain } from "@/config";
 import { useFeedsData } from "@/hooks/useFeedsData";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 
-import { cn } from "@/lib/utils";
+import { cn, FormatNumberWithDecimals } from "@/lib/utils";
 
 import { Asset, TableHeaderArr } from "./portfolio-data";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
@@ -249,7 +249,10 @@ const MuitlAssetRow = ({
             $ {asset.value > 0 ? asset.value.toFixed(2) : "0.00"}
           </TableCell>
           <TableCell className="p-3 font-bold w-[100px] xl:w-[160px]">
-            {asset.amount > 0 ? asset.amount.toFixed(4) : "0.00"}
+            {/* {asset.amount > 0 ? asset.amount.toFixed(4) : "0.00"} */}
+            {asset.amount > 0
+              ? FormatNumberWithDecimals(asset.amount, 4, 6)
+              : "0.00"}
           </TableCell>
           <TableCell
             className="cursor-pointer p-3 w-[100px] xl:w-[160px]"
@@ -300,10 +303,6 @@ const MuitlAssetRow = ({
 export const AssetsTable = () => {
   const { ChainType, solAddress, evmAddress } = useBolarityWalletProvider();
 
-  // const [solList, setSolList] = useState<Asset[]>([]);
-  // const [ethList, setEthList] = useState<Asset[]>([]);
-  // const [usdtList, setUsdtList] = useState<Asset[]>([]);
-
   const [solList, setSolList] = useState([] as Asset[]);
   const [ethList, setEthList] = useState([] as Asset[]);
   const [usdtList, setUsdtList] = useState([] as Asset[]);
@@ -349,6 +348,27 @@ export const AssetsTable = () => {
 
     return usdcListArr;
   }, [accountBalance, feedsData, ChainType]);
+  const sol_bolarity_coin = useMemo(() => {
+    if (!ChainType || !feedsData || !accountBalance?.solBolBalance) return [];
+    const { solBolBalance }: any = accountBalance;
+    let bolList = [];
+
+    if (accountBalance?.solBolBalance) {
+      const solBolArr = {
+        icon: "/walletNo.svg",
+        symbol: CurrencyEnum.BOLARITY,
+        price: "$ 1.00",
+        change24h: 0,
+        value: solBolBalance * 1,
+        amount: solBolBalance,
+        network: "Solana",
+        networkIcon: <SiSolana size={24} />,
+      };
+      bolList.push(solBolArr);
+    }
+
+    return bolList;
+  }, [accountBalance?.solBolBalance, feedsData, ChainType]);
 
   useEffect(() => {
     if (!ChainType) {
@@ -474,6 +494,18 @@ export const AssetsTable = () => {
 
   const [isReceive, setIsReceive] = useState(false);
   // const [isReceiveAddress, setIsReceiveAddress] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Simulate refreshing NFT data
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Simulate API call with timeout
+    setTimeout(() => {
+      // In a real app, you would fetch new data here
+      fetchBalance();
+      setIsRefreshing(false);
+    }, 2000);
+  };
   return (
     <>
       <div className="flex justify-between items-center">
@@ -482,11 +514,15 @@ export const AssetsTable = () => {
           variant="outline"
           size="icon"
           className="rounded-full"
-          onClick={async () => {
-            await fetchBalance();
-          }}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh NFT collection"
         >
-          <RefreshCcwIcon className="h-5 w-5 text-primary" />
+          <RefreshCcwIcon
+            className={`h-5 w-5 ${
+              isRefreshing ? "animate-spin text-gray-400" : "text-primary"
+            }`}
+          />
         </Button>
       </div>
 
@@ -572,6 +608,19 @@ export const AssetsTable = () => {
                     if (solAddress && evmAddress) {
                       setIsOpen(true);
                       setInitFromChain(CurrencyEnum.USDC);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => setIsReceive(true)}
+                />
+                {/* BOLARITY Balance */}
+                <MuitlAssetRow
+                  assets={sol_bolarity_coin}
+                  onSend={() => {
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.BOLARITY);
                     } else {
                       toast.error("Please Activate Proxy Address");
                     }

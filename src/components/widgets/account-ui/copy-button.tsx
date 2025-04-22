@@ -3,7 +3,7 @@ import { CopyIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Copies text to clipboard
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, className }: { text: string; className?: string }) {
   const onCopy = async (text: string) => {
     if (!text || !navigator) return;
     try {
@@ -19,6 +19,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={() => onCopy(text)}
       className={cn(
         "text-muted-foreground cursor-pointer hover:text-foreground",
+        className,
         !text && "hidden"
       )}
     />

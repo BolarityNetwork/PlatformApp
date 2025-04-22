@@ -1,4 +1,4 @@
-import React from "react";
+// import React from "react";
 import { SolanaProvider } from "./solana-provider";
 import { EvmProvider } from "./evm-provider";
 import { ClusterProvider } from "./cluster-provider";
@@ -10,9 +10,7 @@ export function BolarityProvider({ children }: { children: React.ReactNode }) {
       <ClusterProvider>
         <SolanaProvider>
           <BolarityWalletProvider>
-            <WidgetsProvider>
-              {children}
-            </WidgetsProvider>
+            <WidgetsProvider>{children}</WidgetsProvider>
           </BolarityWalletProvider>
         </SolanaProvider>
       </ClusterProvider>

@@ -19,10 +19,9 @@ import {
   parseEther,
 } from "viem";
 import { PublicKey } from "@solana/web3.js";
-import { getExplorerLink, handleTransactionSuccess } from "@/lib/utils";
+import { handleTransactionSuccess, solanaPayloadHead } from "@/lib/utils";
 import { toast } from "sonner";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useDepositModal } from "./vaults-data";
 import {
   AAVE_CONTRACT,
   APPROVE_BASE_AMOUNT,
@@ -34,8 +33,8 @@ import {
 import { useWriteContract } from "wagmi";
 
 import { ETH_DEPOSIT_ABI, ETH_WITHDRAW_ABI } from "@/abis/AAveABI";
-
-const LIDO_STAKE_ABI = ["function stake(uint256 lockTime) external payable"];
+import { useDappInitProgram } from "@/hooks/transfer/solMethod";
+import { LIDO_STAKE_ABI } from "./vaults-data";
 
 export const SubmitButton = ({
   isLoading,
@@ -75,8 +74,8 @@ export const DepositModal = ({
   isDeposit: boolean;
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { evmAddress } = useBolarityWalletProvider();
-  const { CheckApproveTransfer } = useDepositModal();
+  const { evmAddress, CheckUSDTApproveTransfer } = useBolarityWalletProvider();
+
   const onChange = (open: boolean) => {
     onOpenChange(open);
     reset();
@@ -154,7 +153,7 @@ export const DepositModal = ({
       if (hash) {
         // 执行授权 要进行轮询，直到授权成功
         const intervalTime = setInterval(async () => {
-          if (await CheckApproveTransfer()) {
+          if (await CheckUSDTApproveTransfer()) {
             // 提示授权成功
             handleTransactionSuccess(
               hash as string,
@@ -176,7 +175,7 @@ export const DepositModal = ({
 
   const submitForm = async (data: { amount: number }) => {
     setIsLoading(true);
-    if (await CheckApproveTransfer()) {
+    if (await CheckUSDTApproveTransfer()) {
       isEthSumbit(data);
     } else {
       SumbitCheckApprove(data);
@@ -206,13 +205,22 @@ export const DepositModal = ({
                   className="py-6"
                   type="number"
                   step="any"
+                  autoComplete="off"
+                  enctype="application/x-www-form-urlencoded"
                   {...register("amount", {
-                    required: true,
-                    min: 0,
-                    max: evmUsdtBalance,
-                    validate: (value: any) =>
-                      (value > 0 && value <= evmUsdtBalance) ||
-                      "Amount must be greater than 0 and within balance",
+                    required: "Please enter an amount",
+                    validate: (value: string) => {
+                      console.log("value:", value);
+                      if (!/^(0|[1-18]\d*)(\.\d{1,18})?$/.test(value)) {
+                        return "Invalid amount format (max 18 decimals, no leading zeros)";
+                      }
+                      const parsed = parseFloat(value);
+                      if (isNaN(parsed) || parsed <= 0)
+                        return "Please enter a valid amount";
+                      if (parsed > evmUsdtBalance)
+                        return "Insufficient balance";
+                      return true;
+                    },
                   })}
                 />
                 <Label className="ml-2 text-gray-500 text-xl" htmlFor="amount">
@@ -229,15 +237,8 @@ export const DepositModal = ({
                 </span>
               </div>
               {/* 错误信息 */}
-              <div>
-                {errors.amount && (
-                  <span className="text-red-500 float-right">
-                    {errors.amount.type === "max" ||
-                    errors.amount.type === "validate"
-                      ? "Insufficient balance"
-                      : "Please enter a valid amount"}
-                  </span>
-                )}
+              <div className="text-red-500 text-xs">
+                {errors.amount && errors.amount.message}
               </div>
             </div>
             {/* Submit Button */}
@@ -277,7 +278,8 @@ export const LidoDepositModal = ({
   } = useForm();
   const [isLoading, setIsLoading] = useState(false);
   const { ChainType, solAddress } = useBolarityWalletProvider();
-  const { onSendTransaction } = useDepositModal();
+  const { initialize } = useDappInitProgram();
+
   const { writeContract } = useWriteContract();
 
   const isEthSumbit = async (data: { amount: number }) => {
@@ -368,28 +370,31 @@ export const LidoDepositModal = ({
     );
 
     const txPayload = encodeAbiParameters(
-      [{ type: "bytes32" }, { type: "bytes" }],
-      [userAddress, payloadPart]
+      [{ type: "bytes8" }, { type: "bytes32" }, { type: "bytes" }],
+      [toHex(solanaPayloadHead), userAddress, payloadPart]
     );
-    const signature = await onSendTransaction(solanaPublicKey, txPayload);
-    if (signature) {
-      setTimeout(() => {
-        handleTransactionSuccess(
-          signature,
-          getExplorerLink("tx", signature, "devnet")
-        );
-        // 关闭状态
+
+    try {
+      const signature = await initialize.mutateAsync({
+        message: txPayload,
+        solPublicKey: solanaPublicKey,
+        title: functionName,
+      });
+      console.log("激活evm--", signature);
+      if (signature) {
         controllModal(false);
-      }, 3000);
-    } else {
-      toast.error("Transaction Failed.");
+      }
+    } catch (e) {
+      console.log("approve---", e);
+
+      toast.error("Stake Failed.");
       controllModal(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={controllModal}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogTitle>Stake ETH</DialogTitle>
         <form
           onSubmit={handleSubmit(
@@ -400,7 +405,7 @@ export const LidoDepositModal = ({
             controllModal(false);
           }}
         >
-          <div className="grid gap-y-4 p-4">
+          <div className="grid gap-y-4 md:p-4">
             <div className="flex flex-col gap-y-2 mt-2">
               <Label htmlFor="amount" className="text-gray-500">
                 Amount
@@ -412,6 +417,8 @@ export const LidoDepositModal = ({
                   className="py-6"
                   type="number"
                   step="any"
+                  autoComplete="off"
+                  enctype="application/x-www-form-urlencoded"
                   {...register("amount", {
                     required: true,
                     min: 0,
@@ -421,7 +428,10 @@ export const LidoDepositModal = ({
                       "Amount must be greater than 0 and within balance",
                   })}
                 />
-                <Label className="ml-2 text-gray-500 text-xl" htmlFor="amount">
+                <Label
+                  className="ml-2 text-gray-500 md:text-xl"
+                  htmlFor="amount"
+                >
                   ETH
                 </Label>
               </div>
@@ -451,6 +461,7 @@ export const LidoDepositModal = ({
               <Button
                 type="reset"
                 className="bg-gray-500 text-white px-4 py-2 rounded-md"
+                onClick={() => controllModal(false)}
               >
                 Cancel
               </Button>

@@ -8,6 +8,7 @@ import {
   handleTransactionSuccess,
   hexStringToUint8Array,
   rightAlignBuffer,
+  sepoliaPayloadHead,
   sha256,
   sliceBuffer,
   writeUInt16LE,
@@ -20,6 +21,7 @@ import {
   BOLARITY_EVM_CONTRACT,
   BOLARITY_SOLANA_CONTRACT,
   UNI_PROXY,
+  WORMHOLE_EVM_CHAIN_ID,
 } from "@/config";
 import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { serialize } from "borsh";
@@ -30,6 +32,7 @@ const programTest = "DViLwexyLUuKRRXWCQgFYqzoVLWktEbvUVhzKNZ7qTSF";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { useEffect } from "react";
 import { useFetchAddress } from "@/hooks/bolaryty/useFetchAddress";
+import { AccountMeta, RawDataSchema } from "@/config/solala";
 
 const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
   const [refreshing, setRefreshing] = useState(false);
@@ -42,37 +45,10 @@ const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
   const handleActiveAccount = async () => {
     setRefreshing(true);
     const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
-    const realForeignEmitterChain = 10002;
+
     const ethAddress = rightAlignBuffer(
       Buffer.from(hexStringToUint8Array(evmAddress))
     );
-
-    const AccountMeta = {
-      array: {
-        type: { struct: { writeable: "bool", is_signer: "bool" } },
-      },
-    };
-    const RawDataSchema = {
-      struct: {
-        chain_id: "u16",
-        caller: { array: { type: "u8", len: 32 } },
-        programId: { array: { type: "u8", len: 32 } },
-        acc_count: "u8",
-        accounts: {
-          array: {
-            type: {
-              struct: {
-                key: { array: { type: "u8", len: 32 } },
-                isWritable: "bool",
-                isSigner: "bool",
-              },
-            },
-          },
-        },
-        paras: { array: { type: "u8" } },
-        acc_meta: { array: { type: "u8" } },
-      },
-    };
 
     const paras = sliceBuffer(sha256("active"), 0, 8);
     const encodedParams = Buffer.concat([paras]);
@@ -85,14 +61,14 @@ const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
       [
         Buffer.from("pda"),
         (() => {
-          return writeUInt16LE(realForeignEmitterChain);
+          return writeUInt16LE(WORMHOLE_EVM_CHAIN_ID);
         })(),
         ethAddress,
       ],
       HELLO_WORLD_PID
     );
     const RawData = {
-      chain_id: realForeignEmitterChain,
+      chain_id: WORMHOLE_EVM_CHAIN_ID,
       caller: ethAddress,
       programId: new PublicKey(programTest).toBuffer(),
       acc_count: 1,
@@ -113,7 +89,7 @@ const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
         address: BOLARITY_EVM_CONTRACT,
         abi: UNI_PROXY.abi,
         functionName: "sendMessage",
-        args: [toHex(RawDataEncoded)],
+        args: [toHex(Buffer.concat([sepoliaPayloadHead, RawDataEncoded]))],
       },
       {
         onSuccess: (hash) => {
@@ -148,8 +124,22 @@ const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
   }, [hash, isConfirmed, isConfirming]);
   const refreshSolAddress = () => {
     toast.success("Confirming...");
+    let attemptCount = 0;
+    const maxAttempts = 1 * 60; // 1 minute timeout (60 seconds)
+
     const intervalId = setInterval(() => {
+      attemptCount++;
+      console.log("attemptCount", attemptCount);
+      // Check if we've exceeded the timeout period
+      if (attemptCount >= maxAttempts) {
+        clearInterval(intervalId);
+        setRefreshing(false);
+        toast.error("Activation timed out after 1 minute");
+        return;
+      }
+
       fetchProxySolanaAddress(evmAddress).then((res) => {
+        console.log("res---", res);
         if (res) {
           clearInterval(intervalId);
           SolRefreshProxyAddress();
