@@ -5,7 +5,6 @@ import Image from "next/image";
 
 import {
   cn,
-  handleTransactionSuccess,
   hexStringToUint8Array,
   idToBuf,
   rightAlignBuffer,
@@ -19,7 +18,6 @@ import {
   CLAIM_TOKEN_CONTRACT,
   NFT_BASE_ABI,
   NFT_PROOF_CONTRACT,
-  // NFT_VERIFICATION_CONTRACT,
   SupportChain,
   TOKEN_CLAIM_PROGRAM,
 } from "@/config";
@@ -37,14 +35,10 @@ import {
   toHex,
 } from "viem";
 import { toast } from "sonner";
-import { useWriteContract } from "wagmi";
 
-// import { campaignProofNft } from "./campaign-proofNft";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LoadingSpinner from "../ui/loading-spinner";
-import { useEffect } from "react";
-// import { campaignUseWormHole } from "./campaign-useWormHole";
+
 import { MintModal, MintNftModal } from "./campaign-transferNft";
 import { useDappInitProgram } from "@/hooks/transfer/solMethod";
 import { serialize } from "borsh";
@@ -55,6 +49,7 @@ import {
   RawDataSchema,
   SEPOLIA_CHAIN_ID,
 } from "@/config/solala";
+import ethContractTransfer from "@/hooks/transfer/ethTransfer";
 
 const MAXATTEMPTS = 60; // 1分钟 = 60秒
 
@@ -69,8 +64,6 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
     nft_initialize,
     NFT_PID,
   } = useDappInitProgram();
-  // const { sendProof } = campaignProofNft();
-  // const { check_proof_record } = campaignUseWormHole();
 
   const [tokenID, setTokenID] = useState(0);
   // mint loading
@@ -263,21 +256,7 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
   };
 
   // 检查nft mint状态 轮询
-  const setintervalCheckMintStatus = ({
-    signature,
-    isEVM = false,
-  }: {
-    signature: string;
-    isEVM?: boolean;
-  }) => {
-    if (isEVM) {
-      handleTransactionSuccess(
-        signature,
-        `https://sepolia.etherscan.io/tx/${signature}`,
-        "Mint"
-      );
-    }
-
+  const setintervalCheckMintStatus = () => {
     // 设置最大尝试次数 (60秒 / 1秒间隔 = 60次尝试)
     let attempts = 0;
 
@@ -295,6 +274,7 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
 
       // 检查铸造状态
       const mintStatus: any = await CheckMintStatus();
+      console.log("mintStatus---CheckMintStatus", mintStatus);
       // if (mintStatus.length > 0) {
       if (mintStatus?.length) {
         clearInterval(intervalTime);
@@ -349,9 +329,7 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
       });
       console.log("mint--", signature);
       if (signature) {
-        setintervalCheckMintStatus({
-          signature,
-        });
+        setintervalCheckMintStatus();
       }
     } catch (e: unknown) {
       console.log("approve---", e);
@@ -403,8 +381,8 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
       const getToken = await CheckMintStatus();
       console.log("getToken---", getToken);
       if (!getToken?.length) {
-        toast.error("Mint Failed.");
-        // setMintStatus(false);
+        toast.error("Claim Failed.Please try again.");
+        setClaimLoadingStatus(false);
         return;
       }
       console.log("sendProofFunc", getToken);
@@ -430,7 +408,13 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
       setClaimLoadingStatus(false);
     }
   };
-
+  /**
+   *@description Solana发到evm，记录到spy即可，0.4秒
+   *Relayer 查询到需求，发送proof 生成命令到evm智能合约执行proof 生成，预计最多12秒，最短1秒
+   *proof被发送到spy，Relayer递交至Solana 合约，处理时间约0.4秒，
+   *查询预计延迟，0.4秒
+   *合计时间，2.2-13.2秒
+   * */
   const comfirm_claim = (id: number) => {
     toast("Claim Bolarity", {
       description: (
@@ -542,35 +526,34 @@ export const NFTCard = ({ nft, index }: { nft: NFTItem; index: number }) => {
       setClaimLoadingStatus(false);
     }
   };
-  const { writeContractAsync } = useWriteContract();
+
+  const {
+    EthControll,
+    isLoading: isEthLoading,
+    setToastTitle,
+  } = ethContractTransfer();
+  useEffect(() => {
+    if (!isEthLoading) {
+      setintervalCheckMintStatus();
+    }
+  }, [isEthLoading]);
 
   // ETH mint nft
   const eth_mintNftInit = async () => {
-    // const eth_mintNftInit = () => {
-    // testInfo();
     try {
       setMintStatus(true);
 
-      const resHash = await writeContractAsync({
+      setToastTitle("Mint NFT");
+      const resHash = await EthControll({
         abi: NFT_BASE_ABI.abi,
         address: nft.contract as `0x${string}`,
         functionName: "mint",
         args: [],
       });
 
-      if (resHash) {
-        setintervalCheckMintStatus({
-          signature: resHash,
-          isEVM: true,
-        });
-      } else {
-        toast.error("Mint Failed.");
-        setMintStatus(false);
-      }
+      console.log("resHash", resHash);
     } catch (e) {
       console.log("error--isEthSumbit:", e);
-      toast.error("Mint Failed.");
-      setMintStatus(false);
     }
   };
 

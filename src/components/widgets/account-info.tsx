@@ -46,7 +46,7 @@ export const AccountInfo = () => {
         <WalletLogo ChainType={ChainType || null} />
         <div className="flex flex-col items-center lg:items-start gap-y-2">
           <p className="md:text-sm text-xs text-muted-foreground">
-            Total portfolio value
+            Wallet balance
           </p>
           <AccountBalance />
         </div>

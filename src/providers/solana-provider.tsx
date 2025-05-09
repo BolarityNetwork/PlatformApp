@@ -80,12 +80,19 @@ export const SolanaConnectModal = ({
 };
 
 export function SolanaProvider({ children }: { children: React.ReactNode }) {
+  // HTTP endpoint for regular RPC calls
   const endpoint = `${process.env.NEXT_PUBLIC_RPC_URL}`;
+  // WebSocket endpoint for subscription-based updates
+  const wsEndpoint = `${process.env.NEXT_PUBLIC_SOL_RPC_WSS}`;
+  // const wsEndpoint = "wss://devnet.helius-rpc.com/?api-key=123";
+
   const onError = useCallback((error: WalletError) => {
-    console.error(error);
+    console.error("Wallet error:", error);
   }, []);
 
   const network = WalletAdapterNetwork.Devnet;
+
+  // Memoize wallets to prevent unnecessary re-renders
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
@@ -95,11 +102,25 @@ export function SolanaProvider({ children }: { children: React.ReactNode }) {
     ],
     [network]
   );
+
+  // Connection configuration with WebSocket support
+  const connectionConfig = useMemo(
+    () => ({
+      commitment: "confirmed",
+      wsEndpoint: wsEndpoint,
+      disableRetryOnRateLimit: false,
+      confirmTransactionInitialTimeout: 60000, // 60 seconds
+    }),
+    [wsEndpoint]
+  );
+
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider endpoint={endpoint} config={connectionConfig}>
+      {/* <RpcContextProvider> */}
       <WalletProvider wallets={wallets} onError={onError} autoConnect={true}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
+      {/* </RpcContextProvider> */}
     </ConnectionProvider>
   );
 }

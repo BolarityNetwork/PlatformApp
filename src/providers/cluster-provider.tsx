@@ -20,7 +20,9 @@ export enum ClusterNetwork {
   Custom = "custom",
 }
 
-export function toWalletAdapterNetwork(cluster?: ClusterNetwork): WalletAdapterNetwork | undefined {
+export function toWalletAdapterNetwork(
+  cluster?: ClusterNetwork
+): WalletAdapterNetwork | undefined {
   switch (cluster) {
     case ClusterNetwork.Mainnet:
       return WalletAdapterNetwork.Mainnet;
@@ -33,7 +35,7 @@ export function toWalletAdapterNetwork(cluster?: ClusterNetwork): WalletAdapterN
   }
 }
 
-export const defaultClusters: Cluster[] = [  
+export const defaultClusters: Cluster[] = [
   {
     name: "devnet",
     endpoint: clusterApiUrl("devnet"),
@@ -43,8 +45,8 @@ export const defaultClusters: Cluster[] = [
     name: "testnet",
     endpoint: clusterApiUrl("testnet"),
     network: ClusterNetwork.Testnet,
-  },  
-  { name: "local", endpoint: "http://localhost:8899" },  
+  },
+  { name: "local", endpoint: "http://localhost:8899" },
   {
     name: "mainnet",
     endpoint: "",
@@ -52,8 +54,14 @@ export const defaultClusters: Cluster[] = [
   },
 ];
 
-const clusterAtom = atomWithStorage<Cluster>("solana-cluster", defaultClusters[0]);
-const clustersAtom = atomWithStorage<Cluster[]>("solana-clusters", defaultClusters);
+const clusterAtom = atomWithStorage<Cluster>(
+  "solana-cluster",
+  defaultClusters[0]
+);
+const clustersAtom = atomWithStorage<Cluster[]>(
+  "solana-clusters",
+  defaultClusters
+);
 
 const activeClustersAtom = atom<Cluster[]>((get) => {
   const clusters = get(clustersAtom);
@@ -79,7 +87,9 @@ export interface ClusterProviderContext {
   getExplorerUrl(path: string): string;
 }
 
-const Context = createContext<ClusterProviderContext>({} as ClusterProviderContext);
+const Context = createContext<ClusterProviderContext>(
+  {} as ClusterProviderContext
+);
 
 export const ClusterProvider = ({ children }: { children: ReactNode }) => {
   const cluster = useAtomValue(activeClusterAtom);
@@ -103,14 +113,15 @@ export const ClusterProvider = ({ children }: { children: ReactNode }) => {
       setClusters(clusters.filter((item) => item.name !== cluster.name));
     },
     setCluster: (cluster: Cluster) => setCluster(cluster),
-    getExplorerUrl: (path: string) => `https://explorer.solana.com/${path}${getClusterUrlParam(cluster)}`,
+    getExplorerUrl: (path: string) =>
+      `https://explorer.solana.com/${path}${getClusterUrlParam(cluster)}`,
   };
   return <Context.Provider value={value}>{children}</Context.Provider>;
-}
+};
 
-export const useCluster =()  =>  {
+export const useCluster = () => {
   return useContext(Context);
-}
+};
 
 function getClusterUrlParam(cluster: Cluster): string {
   let suffix = "";

@@ -17,6 +17,7 @@ import { ChainId } from "@certusone/wormhole-sdk";
 import { toast } from "sonner";
 
 import { WORMHOLE_EVM_CHAIN_ID } from "@/config";
+import { web3 } from "@coral-xyz/anchor";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -240,23 +241,54 @@ export const isValidEvmAddress = (address?: string): boolean => {
 // };
 
 export const deriveEthAddressKey = (
-  programId: PublicKeyInitData,
-  chain: ChainId,
-  address: PublicKey
-) => {
-  return deriveAddress(
-    [
-      Buffer.from("pda"),
-      (() => {
-        const buf = Buffer.alloc(2);
-        buf.writeUInt16LE(chain);
-        return buf;
-      })(),
-      address.toBuffer(),
-    ],
-    programId
-  );
-};
+    programId: PublicKeyInitData,
+    chain: ChainId,
+    address: PublicKey
+  ) => {
+    return deriveAddress(
+      [
+        Buffer.from("pda"),
+        (() => {
+          const buf = Buffer.alloc(2);
+          buf.writeUInt16LE(chain);
+          return buf;
+        })(),
+        address.toBuffer(),
+      ],
+      programId
+    );
+  },
+  getUserAccountPublicKey = (
+    programId: PublicKey,
+    authority: PublicKey,
+    subAccountId = 0
+  ): PublicKey => {
+    // const encoder = new TextEncoder();
+    // const encodedBytes = encoder.encode("user");
+    const subAccountIdBuffer = Buffer.alloc(2);
+    subAccountIdBuffer.writeUInt16BE(subAccountId);
+    const reaAddress = web3.PublicKey.findProgramAddressSync(
+      // [Buffer.from(encodedBytes), authority.toBuffer(), subAccountIdBuffer],
+      [Buffer.from("user"), authority.toBuffer(), subAccountIdBuffer],
+      programId
+    );
+    console.log("reaAddress00---", reaAddress);
+    return reaAddress[0];
+  },
+  getUserStatsAccountPublicKey = (
+    programId: PublicKey,
+    authority: PublicKey
+  ): PublicKey => {
+    // const encoder = new TextEncoder();
+    // const encodedBytes = encoder.encode("user_stats");
+    const reaAddress = web3.PublicKey.findProgramAddressSync(
+      // [Buffer.from(encodedBytes), authority.toBuffer()],
+      [Buffer.from("user_stats"), authority.toBuffer()],
+      programId
+    );
+    console.log("reaAddress", reaAddress);
+    return reaAddress[0];
+  };
 
 export const handleError = (error: unknown, message: string) => {
   console.error(message, error);
@@ -361,3 +393,25 @@ export function FormatNumberWithDecimals(
     maximumFractionDigits: maxDecimals,
   }).format(num);
 }
+
+// 创建一个带超时的请求函数
+export const fetchWithTimeout = async (
+  promise: Promise<any>,
+  timeout = 5000
+) => {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("Request timeout"));
+    }, timeout);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timer);
+    return result;
+  } catch (error) {
+    clearTimeout(timer);
+    throw error;
+  }
+};

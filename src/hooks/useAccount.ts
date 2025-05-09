@@ -1,19 +1,20 @@
 "use client";
 
-import { ClusterNetwork, useCluster } from "@/providers/cluster-provider";
-import { isValidEvmAddress } from "@/lib/utils";
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { ClusterNetwork } from "@/providers/cluster-provider";
+import { isValidEvmAddress, fetchWithTimeout } from "@/lib/utils";
+
 import { useConnection } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+
 import { useQuery } from "@tanstack/react-query";
 
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import {
-  CLAIM_TOKEN_CONTRACT,
   CurrencyEnum,
   EVM_USDC_CONTRACT,
   EVM_USDT_CONTRACT,
   EVM_WSOL_CONTRACT,
+  SOL_BTC_TOKEN,
+  SOLANA_USDC_CONTRACT,
 } from "@/config";
 
 import { BalanceData } from "./atoms";
@@ -29,47 +30,22 @@ export const getSolTokenMintAddress = (
     [ClusterNetwork.Mainnet]: {
       [CurrencyEnum.USDT]: "Es9vMFrzaCERUKHPvo1PiYVg3sboFev3K56CVNezj6ou",
       [CurrencyEnum.USDC]: "AxsjH9JvUD7fLShMMYZ1xDb4sCVXzvhmWgDWpS6muZGi",
+      [CurrencyEnum.BTC]: "",
     },
     [ClusterNetwork.Devnet]: {
-      [CurrencyEnum.USDT]: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-      [CurrencyEnum.USDC]: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      [CurrencyEnum.USDT]: SOLANA_USDC_CONTRACT,
+      [CurrencyEnum.USDC]: SOLANA_USDC_CONTRACT,
+      [CurrencyEnum.BTC]: SOL_BTC_TOKEN,
     },
   };
 
   return mintAddresses[network]?.[tokenSymbol];
 };
 
-export function useGetTokenAccounts({ address }: { address: PublicKey }) {
-  const { connection } = useConnection();
-
-  return useQuery({
-    queryKey: [
-      "get-token-accounts",
-      { endpoint: connection.rpcEndpoint, address },
-    ],
-    queryFn: async () => {
-      const [tokenAccounts, token2022Accounts] = await Promise.all([
-        connection.getParsedTokenAccountsByOwner(address, {
-          programId: TOKEN_PROGRAM_ID,
-        }),
-        connection.getParsedTokenAccountsByOwner(address, {
-          programId: TOKEN_2022_PROGRAM_ID,
-        }),
-      ]);
-      return [...tokenAccounts.value, ...token2022Accounts.value];
-    },
-  });
-}
 export const useGetBalance = () => {
   const { connection } = useConnection();
 
-  const { cluster } = useCluster();
   const { evmAddress, solAddress } = useBolarityWalletProvider();
-
-  const SOL_USDC_MINT_ADDRESS = getSolTokenMintAddress(
-    CurrencyEnum.USDC,
-    cluster.name
-  );
 
   return useQuery({
     queryKey: [
@@ -79,78 +55,14 @@ export const useGetBalance = () => {
     enabled: !!solAddress || !!evmAddress,
     queryFn: async (): Promise<BalanceData> => {
       let data = {
-        solBalance: 0,
-        solEthBalance: 0,
-        solUsdtBalance: 0,
-        solUsdcBalance: 0,
         ethBalance: 0,
         ethSolBalance: 0,
         ethUsdtBalance: 0,
         ethUsdcBalance: 0,
-        solBolBalance: 0,
-      };
-
-      // 创建一个带超时的请求函数
-      const fetchWithTimeout = async (promise, timeout = 5000) => {
-        let timer;
-        const timeoutPromise = new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            reject(new Error("Request timeout"));
-          }, timeout);
-        });
-
-        try {
-          const result = await Promise.race([promise, timeoutPromise]);
-          clearTimeout(timer);
-          return result;
-        } catch (error) {
-          clearTimeout(timer);
-          throw error;
-        }
       };
 
       // 并行执行所有请求
       const promises = [];
-
-      // Solana 相关请求
-      if (solAddress) {
-        const solPublicKey = new PublicKey(solAddress);
-
-        // 1. SOL 余额请求
-        promises.push(
-          fetchWithTimeout(connection.getBalance(solPublicKey))
-            .then((solBalance) => {
-              if (solBalance) {
-                data.solBalance = Number(solBalance / LAMPORTS_PER_SOL);
-              }
-            })
-            .catch((e) => console.log("get SOL Balance error:", e))
-        );
-
-        // 2. USDC +bolarity 余额请求
-        promises.push(
-          fetchWithTimeout(
-            connection
-              .getParsedTokenAccountsByOwner(new PublicKey(solAddress), {
-                programId: TOKEN_PROGRAM_ID,
-              })
-              .then((tokenAccounts) => {
-                console.log("tokenAccounts---tokenAccounts--", tokenAccounts);
-                if (tokenAccounts.value.length) {
-                  tokenAccounts.value.forEach(({ account }) => {
-                    const { mint, tokenAmount } = account.data.parsed.info;
-                    if (SOL_USDC_MINT_ADDRESS == mint) {
-                      data.solUsdcBalance = tokenAmount.uiAmount;
-                    }
-                    if (CLAIM_TOKEN_CONTRACT == mint) {
-                      data.solBolBalance = tokenAmount.uiAmount;
-                    }
-                  });
-                }
-              })
-          )
-        );
-      }
 
       // 以太坊相关请求
       if (isValidEvmAddress(evmAddress) && publicClient) {

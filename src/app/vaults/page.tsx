@@ -1,5 +1,13 @@
+"use client";
+
+import { DriftClientProvider } from "@/providers/drift-client-provider";
+
 import VaultsFeature from "@/components/vaults/vaults-feature";
 
 export default function Page() {
-  return <VaultsFeature />;
+  return (
+    <DriftClientProvider>
+      <VaultsFeature />
+    </DriftClientProvider>
+  );
 }

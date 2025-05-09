@@ -46,6 +46,8 @@ import { cn, FormatNumberWithDecimals } from "@/lib/utils";
 import { Asset, TableHeaderArr } from "./portfolio-data";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
 
+import { useSolanaAccountBalance } from "@/providers/useSolanaAccountBalance";
+
 const AssetsModal = ({
   open = false,
   onOpenChange,
@@ -312,11 +314,12 @@ export const AssetsTable = () => {
     data: accountBalance,
     refetch: fetchBalance,
   } = useGetBalance();
-
+  const { solBalance, solBolBalance, solUsdcBalance } =
+    useSolanaAccountBalance();
   const { feedsData } = useFeedsData();
   const usdc_arr = useMemo(() => {
     if (!ChainType || !feedsData || !accountBalance) return [];
-    const { solUsdcBalance, ethUsdcBalance }: any = accountBalance;
+    const { ethUsdcBalance }: any = accountBalance;
     let usdcListArr = [];
     if (solUsdcBalance > 0) {
       const solUsdcArr = {
@@ -347,13 +350,13 @@ export const AssetsTable = () => {
     }
 
     return usdcListArr;
-  }, [accountBalance, feedsData, ChainType]);
+  }, [accountBalance, feedsData, ChainType, solUsdcBalance]);
   const sol_bolarity_coin = useMemo(() => {
-    if (!ChainType || !feedsData || !accountBalance?.solBolBalance) return [];
-    const { solBolBalance }: any = accountBalance;
+    if (!ChainType || !feedsData) return [];
+
     let bolList = [];
 
-    if (accountBalance?.solBolBalance) {
+    if (solBolBalance) {
       const solBolArr = {
         icon: "/walletNo.svg",
         symbol: CurrencyEnum.BOLARITY,
@@ -368,7 +371,7 @@ export const AssetsTable = () => {
     }
 
     return bolList;
-  }, [accountBalance?.solBolBalance, feedsData, ChainType]);
+  }, [solBolBalance, feedsData, ChainType]);
 
   useEffect(() => {
     if (!ChainType) {
@@ -382,14 +385,7 @@ export const AssetsTable = () => {
       return;
     }
 
-    const {
-      solBalance,
-      solEthBalance,
-      solUsdtBalance,
-      ethBalance,
-      ethSolBalance,
-      ethUsdtBalance,
-    }: any = accountBalance;
+    const { ethBalance, ethSolBalance, ethUsdtBalance }: any = accountBalance;
     console.log("solUsdcBalance----", feedsData.usdc);
     console.log("solBalance", accountBalance);
 
@@ -427,37 +423,6 @@ export const AssetsTable = () => {
       }
     }
 
-    if (solEthBalance > 0) {
-      const solEthArr = [
-        {
-          icon: "/ethereum.svg",
-          symbol: CurrencyEnum.ETHEREUM,
-          price: feedsData.eth.formattedPrice,
-          change24h: feedsData.eth.change24h,
-          value: solEthBalance * feedsData.eth.price,
-          amount: solEthBalance,
-          network: "Solana",
-          networkIcon: <SiSolana size={24} />,
-        },
-      ];
-      setEthList(new Set([...ethList, ...solEthArr]));
-    }
-
-    if (solUsdtBalance > 0) {
-      setUsdtList([
-        {
-          icon: "/tether.png",
-          symbol: CurrencyEnum.USDT,
-          price: feedsData.usdt.formattedPrice,
-          change24h: 0,
-          value: solUsdtBalance * feedsData.usdt.price,
-          amount: solUsdtBalance,
-          network: "Solana",
-          networkIcon: <SiSolana size={24} />,
-        },
-      ]);
-    }
-
     if (ChainType === SupportChain.Ethereum || evmAddress) {
       setEthList([
         {
@@ -488,7 +453,7 @@ export const AssetsTable = () => {
         },
       ]);
     }
-  }, [accountBalance, feedsData, ChainType]);
+  }, [accountBalance, feedsData, ChainType, solBalance]);
 
   const { setIsOpen, setInitFromChain } = useWidgetsProvider();
 

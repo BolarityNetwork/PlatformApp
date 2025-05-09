@@ -18,6 +18,16 @@ const nextConfig = {
     // 排除某些不需要打包的依赖
     config.externals.push("pino-pretty", "encoding");
 
+    if (!isServer) {
+      config.resolve.fallback = {
+        fs: false,
+        tls: false,
+        net: false, // Disables the polyfill for 'net' module
+        dgram: false, // Disables the polyfill for 'dgram' module
+        dns: false, // Disables the polyfill for 'dgram' module
+      };
+    }
+
     return config; // 返回修改后的 Webpack 配置
   },
   swcMinify: true, // 确保启用 SWC 压缩
@@ -44,6 +54,19 @@ const nextConfig = {
             exclude: ["error"],
           }
         : false,
+  },
+
+  env: {
+    API_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
+  // proxy to server
+  async rewrites() {
+    return [
+      {
+        source: "/dev/:path*",
+        destination: process.env.NEXT_PUBLIC_SERVER_API_URL + "/:path*",
+      },
+    ];
   },
 };
 

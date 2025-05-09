@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { NFT_BASE_ABI, SupportChain } from "@/config";
 import { FiAlertCircle } from "react-icons/fi";
 import { IoCloseOutline } from "react-icons/io5";
-import { cn, handleTransactionSuccess, solanaPayloadHead } from "@/lib/utils";
+import { cn, solanaPayloadHead } from "@/lib/utils";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
 import { PublicKey } from "@solana/web3.js";
@@ -26,7 +26,6 @@ import {
   toBytes,
   toHex,
 } from "viem";
-import { useWriteContract } from "wagmi";
 
 import { toast } from "sonner";
 import LoadingSpinner from "../ui/loading-spinner";
@@ -47,6 +46,7 @@ import { useMemo } from "react";
 import { useTheme } from "next-themes";
 import { useEffect } from "react";
 import { useDappInitProgram } from "@/hooks/transfer/solMethod";
+import ethContractTransfer from "@/hooks/transfer/ethTransfer";
 
 export function CampaignTransferNft({
   contract,
@@ -77,31 +77,37 @@ export function CampaignTransferNft({
     }
   };
   const [isLoading, setIsLoading] = useState(false);
-  const { writeContractAsync } = useWriteContract();
+
+  const {
+    EthControll,
+    isLoading: isEthLoading,
+    setToastTitle,
+  } = ethContractTransfer();
 
   const eth_transferNFT = async (recipient: string) => {
+    setToastTitle("Transfer NFT");
     try {
-      const hash = await writeContractAsync({
+      const res = await EthControll({
         address: contract as `0x${string}`,
         abi: NFT_BASE_ABI.abi,
         functionName: "safeTransferFrom",
         args: [evmAddress, recipient, BigInt(tokenID)],
       });
-      console.log("nft-转账成功--", hash);
-      if (hash) {
-        handleTransactionSuccess(
-          hash,
-          `https://sepolia.etherscan.io/tx/${hash}`,
-          "Transfer NFT"
-        );
-        setIsLoading(false);
-        setIsNFTOpen(false);
-      }
+      console.log("nft-转账成功--", res);
     } catch (err) {
       console.error("转账失败:", err);
-      setIsLoading(false);
     }
   };
+  useEffect(() => {
+    if (!isEthLoading) {
+      controllModal(false);
+    }
+  }, [isEthLoading]);
+  function controllModal(open: boolean) {
+    setIsLoading(open);
+    setIsNFTOpen(open);
+  }
+
   const { isNFTOpen, setIsNFTOpen } = useWidgetsProvider();
 
   const sol_transferNFT = async (recipient: string) => {
@@ -193,7 +199,7 @@ export function CampaignTransferNft({
                 placeholder="Input destination address"
                 className="py-6"
                 autoComplete="off"
-                enctype="application/x-www-form-urlencoded"
+                encType="application/x-www-form-urlencoded"
                 {...register("address", {
                   required: true,
                   validate: (value: any) => {

@@ -67,6 +67,7 @@ import {
 
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 import { useMemo, useState } from "react";
+import { useSolanaAccountBalance } from "@/providers/useSolanaAccountBalance";
 
 const STATIC_AMOUNT = 0.01,
   validAmountFormat = /^(0|[1-9]\d*)(\.\d{1,9})?$/;
@@ -85,6 +86,9 @@ const TransferForm = ({
 
   const { CheckApproveTransfer, ChainType: Chainlink_type } =
     useBolarityWalletProvider();
+  const { solBalance, solBolBalance, solUsdcBalance } =
+    useSolanaAccountBalance();
+  console.log("ws-sol---balance", solBalance);
 
   const {
     register,
@@ -150,7 +154,7 @@ const TransferForm = ({
   }
 
   const buildTransferSameChain = async (isAmount: number, toPubkey: string) => {
-    const { ethSolBalance = 0, solBalance = 0 }: any = accountBalance;
+    const { ethSolBalance = 0 }: any = accountBalance;
 
     let amount = 0;
     if (isAmount >= solBalance) {
@@ -263,20 +267,6 @@ const TransferForm = ({
     console.log("hash--发送EVM转账 eth -> eth--", hash);
     transactionStatus(hash);
   };
-  // 2.2 发送EVM转账 usdt -> usdt  usdc -> usdc
-  const ethTransferToUsdt = async (
-    balance: number,
-    to: string,
-    token: CurrencyEnum.USDT | CurrencyEnum.USDC
-  ) => {
-    const hash = await ethereumTransferSplBalanceToEvm({
-      balance,
-      to,
-      token,
-    });
-    console.log("hash--发送EVM转账 usdt -> usdt--", hash);
-    transactionStatus(hash);
-  };
 
   // 2.3 发送EVM转账 wsol -> wsolconst
 
@@ -377,7 +367,7 @@ const TransferForm = ({
   }) => {
     console.log("Form Data:", data);
     const { amount, fromChain, network, address } = data;
-    const { ethSolBalance = 0, solUsdcBalance = 0 }: any = accountBalance;
+    const { ethSolBalance = 0 }: any = accountBalance;
     console.log("currentBalance_sol000---", currentBalance_sol);
     setLoadingState(true);
     // 全局判断 是solana还是evm
@@ -415,7 +405,12 @@ const TransferForm = ({
         (fromChain === CurrencyEnum.USDC && currentChainTo)
       ) {
         console.log("当前ETH转账支持USDT和USDC");
-        ethTransferToUsdt(amount, address, fromChain);
+        // 2.2 发送EVM转账 usdt -> usdt  usdc -> usdc
+        ethereumTransferSplBalanceToEvm({
+          balance: amount,
+          to: address,
+          token: fromChain,
+        });
       } else if (
         fromChain === CurrencyEnum.SOLANA &&
         network === CurrencyEnum.SOLANA
@@ -534,22 +529,18 @@ const TransferForm = ({
   const currentBalance = useMemo(() => {
     if (!accountBalance) return 0;
     const {
-      solBalance = 0,
-      solUsdtBalance = 0,
-      solUsdcBalance = 0,
       ethBalance = 0,
       ethUsdtBalance = 0,
       ethUsdcBalance = 0,
       ethSolBalance = 0,
       solEthBalance = 0,
-      solBolBalance = 0,
     }: any = accountBalance;
     if (watchFromChain === CurrencyEnum.SOLANA) {
       return FormatNumberWithDecimals(solBalance + ethSolBalance, 4, 9);
     } else if (watchFromChain === CurrencyEnum.ETHEREUM) {
       return ethBalance + solEthBalance;
     } else if (watchFromChain === CurrencyEnum.USDT) {
-      return solUsdtBalance + ethUsdtBalance;
+      return ethUsdtBalance;
     } else if (watchFromChain === CurrencyEnum.USDC) {
       return FormatNumberWithDecimals(solUsdcBalance + ethUsdcBalance, 4, 6);
     } else if (watchFromChain === CurrencyEnum.BOLARITY) {
@@ -559,10 +550,8 @@ const TransferForm = ({
 
   // 计算当前余额 sol
   const currentBalance_sol = useMemo(() => {
-    if (!accountBalance) return 0;
-    const { solBalance = 0 }: any = accountBalance;
     return solBalance;
-  }, [accountBalance]);
+  }, [solBalance]);
   // 计算当前余额 eth的sol
   const currentSolBalance_Eth = useMemo(() => {
     if (!accountBalance) return 0;
@@ -626,7 +615,7 @@ const TransferForm = ({
                 placeholder="0.0"
                 step="any"
                 autoComplete="off"
-                enctype="application/x-www-form-urlencoded"
+                encType="application/x-www-form-urlencoded"
                 className="text-md text-right pr-1 border-0 focus:border-0 focus:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 {...register("amount", {
                   required: "Please enter an amount",
@@ -734,7 +723,7 @@ const TransferForm = ({
             placeholder="Input destination address"
             className="py-6"
             autocomplete="off"
-            enctype="application/x-www-form-urlencoded"
+            encType="application/x-www-form-urlencoded"
             {...register("address", {
               required: true,
               validate: (value: any) => {

@@ -43,20 +43,7 @@ const WalletButton = () => {
     console.log("handleEvmConnected:", address);
     setOpenEvmModal(false);
   };
-
-  const DisconnectWallet = () => {
-    console.log("DisconnectWallet", ChainType);
-    switch (ChainType) {
-      // 刷新 evm 代理地址
-      case SupportChain.Solana:
-        disconnectSolana();
-      // 刷新 solana 代理地址
-      case SupportChain.Ethereum:
-        handleDisconnect();
-      default:
-        break;
-    }
-
+  const disconnect_clear_info = () => {
     setSolAddress("");
     setEvmAddress("");
     setChainType(null);
@@ -65,6 +52,21 @@ const WalletButton = () => {
 
     // setIconUrl("/phantom.svg")
     setIconUrl("/walletNo.svg");
+  };
+  const DisconnectWallet = () => {
+    console.log("DisconnectWallet", ChainType);
+    switch (ChainType) {
+      // 刷新 evm 代理地址
+      case SupportChain.Solana:
+        disconnectSolana();
+        disconnect_clear_info();
+      // 刷新 solana 代理地址
+      case SupportChain.Ethereum:
+        handleDisconnect();
+        disconnect_clear_info();
+      default:
+        break;
+    }
   };
   const { disconnect, connectors } = useDisconnect();
 
