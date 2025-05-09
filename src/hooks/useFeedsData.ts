@@ -31,6 +31,7 @@ export const useFeedsData = () => {
       updateFeedsData(CurrencyEnum.SOLANA, "SOL");
       updateFeedsData(CurrencyEnum.USDC, "USDC");
       updateFeedsData(CurrencyEnum.USDT, "USDC"); // 若 USDT 对应 USDC 的数据
+      updateFeedsData(CurrencyEnum.BTC, "BTC");
     }
   }, [data, updateFeedsData]);
 

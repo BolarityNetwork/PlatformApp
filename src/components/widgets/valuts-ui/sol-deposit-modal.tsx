@@ -25,13 +25,17 @@ import {
   APPROVE_BASE_AMOUNT,
   EVM_USDT_CONTRACT,
 } from "@/config";
+import LoadingButton from "./loadingButton";
 
-import { SubmitButton } from "./vaults-ui";
 import { useDappInitProgram } from "@/hooks/transfer/solMethod";
-import { DEPOSIT_ABI, USDT_APPROVE_ABI, WITHDRAW_ABI } from "./vaults-data";
+import {
+  DEPOSIT_ABI,
+  USDT_APPROVE_ABI,
+  WITHDRAW_ABI,
+} from "../../vaults/vaults-data";
 
 //aave  存款 提现 弹框
-export const SolDeposit = ({
+const SolDepositModal = ({
   open = false,
   onOpenChange,
   evmUsdtBalance,
@@ -265,7 +269,7 @@ export const SolDeposit = ({
                   className="py-6"
                   type="number"
                   autoComplete="off"
-                  enctype="application/x-www-form-urlencoded"
+                  encType="application/x-www-form-urlencoded"
                   step="any"
                   {...register("amount", {
                     required: "Please enter an amount",
@@ -316,7 +320,7 @@ export const SolDeposit = ({
                 Cancel
               </Button>
 
-              <SubmitButton isLoading={isLoading} isDeposit={isDeposit} />
+              <LoadingButton isLoading={isLoading} isDeposit={isDeposit} />
             </div>
           </div>
         </form>
@@ -324,3 +328,5 @@ export const SolDeposit = ({
     </Dialog>
   );
 };
+
+export default SolDepositModal;

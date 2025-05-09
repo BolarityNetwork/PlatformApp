@@ -16,24 +16,22 @@ export const walletAtom = atom<IWallet>({
   evmAddress: "",
   disconnect: () => {},
 });
-
+export interface IDriftDataType {
+  btc: number;
+  usdc: number;
+  sol: number;
+}
 export interface BalanceData {
-  solBalance: number;
-  solUsdtBalance: number;
-  solUsdcBalance: number;
+  ethSolBalance: number;
   ethBalance: number;
   ethUsdtBalance: number;
   ethUsdcBalance: number;
-  solBolBalance: number;
 }
 const defaultBalanceData = {
-  solBalance: 0,
-  solUsdtBalance: 0,
-  solUsdcBalance: 0,
+  ethSolBalance: 0,
   ethBalance: 0,
   ethUsdtBalance: 0,
   ethUsdcBalance: 0,
-  solBolBalance: 0,
 };
 export const accountBalanceDataAtom = atom<BalanceData>(defaultBalanceData);
 
@@ -95,6 +93,15 @@ const defaultFeedsData: FeedsType = {
     price: 1,
     formattedPrice: "0",
     network: "Solana",
+    change24h: 0,
+  },
+  [CurrencyEnum.BTC]: {
+    logo: "/btc.png",
+    symbol: "BTC",
+    name: "Bitcoin",
+    price: 1,
+    formattedPrice: "0",
+    network: "Ethereum",
     change24h: 0,
   },
 };

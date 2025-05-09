@@ -9,6 +9,7 @@ export enum CurrencyEnum {
   USDT = "usdt",
   USDC = "usdc",
   BOLARITY = "bol",
+  BTC = "btc",
 }
 // 虫洞的solana合约
 export const BOLARITY_SOLANA_CONTRACT =
@@ -88,3 +89,42 @@ export const TOKEN_CLAIM_PROGRAM = process.env.NEXT_PUBLIC_TOKEN_CLAIM_PROGRAM!;
 // nft abi
 
 export const NFT_BASE_ABI = require("../abis/NFT.json");
+
+// aave 2025-04-24 edit
+export const EVM_AAVE_CONTRACT = process.env
+    .NEXT_PUBLIC_EVM_AAVE_CONTRACT! as `0x${string}`,
+  EVM_AAVE_USDT_CONTRACT = process.env
+    .NEXT_PUBLIC_EVM_AAVE_USDT_CONTRACT! as `0x${string}`;
+
+// 2025-04-27 create
+export const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+export const DRIFT_PROGRAM_ID = process.env.NEXT_PUBLIC_DRIFT_PROGRAM_ID!;
+
+// 2025-04-30 create
+export const SOL_BTC_TOKEN = process.env.NEXT_PUBLIC_SOL_BTC_TOKEN!;
+
+// drift Sol market
+// index=1
+// marketpda=…
+
+// drift USDC market
+// index=2
+// marketpda=…
+// 2025-05-06 create drift
+export const DRIFT_MARKET_INFO = {
+    sol: {
+      market_index: process.env.NEXT_PUBLIC_DRIFT_SOL_MARKET_INDEX!,
+      market_pda: process.env.NEXT_PUBLIC_DRIFT_SOL_MARKET_PDA!,
+    },
+    usdc: {
+      market_index: process.env.NEXT_PUBLIC_DRIFT_USDC_MARKET_INDEX!,
+      market_pda: process.env.NEXT_PUBLIC_DRIFT_USDC_MARKET_PDA!,
+    },
+    btc: {
+      market_index: process.env.NEXT_PUBLIC_DRIFT_BTC_MARKET_INDEX!,
+      market_pda: process.env.NEXT_PUBLIC_DRIFT_BTC_MARKET_PDA!,
+    },
+  },
+  DRIFT_ACCOUNT_ID = Number(process.env.NEXT_PUBLIC_DRIFT_ACCOUNT_ID!),
+  DRIFT_BTC_MINT = process.env.NEXT_PUBLIC_DRIFT_BTC_MINT!,
+  DRIFT_USDC_MINT = process.env.NEXT_PUBLIC_DRIFT_USDC_MINT!;

@@ -47,22 +47,19 @@ import {
   ETH_TRANSFER_USDT_USDC_TO_USDT_USDC_ABI,
 } from "@/abis/EthSolBridgeSol";
 import { useWidgetsProvider } from "@/providers/widgets-provider";
-import { useCluster } from "@/providers/cluster-provider";
+
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 
 import { publicClient } from "@/config/wagmi";
 import { RawDataSchema, encodeMeta } from "@/config/solala";
+import ethContractTransfer from "@/hooks/transfer/ethTransfer";
+import { useEffect } from "react";
 const STATIC_AMOUNT = 0.01; //最低转账金额
 
 function EthTransferFunc() {
   const { writeContract, writeContractAsync } = useWriteContract();
-  const { getExplorerUrl } = useCluster();
   const { evmAddress, CheckApproveTransfer } = useBolarityWalletProvider();
-
-  // 交易状态提示
-  function transactionStatus(hash: string) {
-    handleTransactionSuccess(hash, getExplorerUrl(`tx/${hash}`), "Transfer");
-  }
+  const { EthControll, isLoading, setToastTitle } = ethContractTransfer();
 
   const { setIsOpen } = useWidgetsProvider();
 
@@ -172,23 +169,35 @@ function EthTransferFunc() {
     switch (token) {
       case CurrencyEnum.USDC:
         tokenContract = EVM_USDC_CONTRACT;
+        setToastTitle("Transfer USDC");
         break;
       case CurrencyEnum.USDT:
       default:
         tokenContract = EVM_USDT_CONTRACT;
+        setToastTitle("Transfer USDT");
         break;
     }
-
-    // 2. 发送交易
-    const hash = await writeContractAsync({
-      abi: ETH_TRANSFER_USDT_USDC_TO_USDT_USDC_ABI,
-      address: tokenContract,
-      functionName: "transfer",
-      args: [to, parseUnits(balance.toString(), 6)],
-    });
-    console.log("hash--ethereumTransferSplBalanceToEvm--", hash);
-    return hash;
+    try {
+      // 2. 发送交易
+      const hash = await EthControll({
+        abi: ETH_TRANSFER_USDT_USDC_TO_USDT_USDC_ABI,
+        address: tokenContract,
+        functionName: "transfer",
+        args: [to, parseUnits(balance.toString(), 6)],
+      });
+      console.log("hash--ethereumTransferSplBalanceToEvm--", hash);
+      // return hash;
+    } catch (e) {
+      console.log("e--ethereumTransferSplBalanceToEvm--", e);
+      toast.error("Transaction failed");
+      setIsOpen(false);
+    }
   };
+  useEffect(() => {
+    if (!isLoading) {
+      setIsOpen(false);
+    }
+  }, [isLoading]);
 
   const EthTransferApprove = async () => {
     console.log("solanaTransferSolBalanceToEth");
@@ -217,16 +226,16 @@ function EthTransferFunc() {
       [{ type: "bytes32" }],
       [toHex(Buffer.from(hexStringToUint8Array(byte32Address)))]
     );
+
+    setToastTitle("Transferring WSOL");
     try {
-      const hash = await writeContractAsync({
+      const hash = await EthControll({
         address: TOKEN_BRIDGE_RELAYER_CONTRACT,
         abi: TOKEN_BRIDGE_RELAYER.abi,
         functionName: "transferTokensWithRelay",
         args: [EVM_WSOL_CONTRACT, amount, 0, 1, targetRecipient, 0],
       });
       console.log("hash--跨桥交易--", hash);
-      transactionStatus(hash.toString());
-      setIsOpen(false);
     } catch (e) {
       console.log("e--跨桥交易--", e);
       toast.error("Transaction failed");
@@ -259,7 +268,6 @@ function EthTransferFunc() {
           // 执行转账逻辑
 
           setTimeout(() => {
-            // ethTransferToSolBalanceToSolana(balance, to);
             if (currentBalance_sol <= STATIC_AMOUNT) {
               // 如果sol本链余额不足，则直接跨桥
               ethTransferToSolBalanceToSolana(balance, to);
@@ -522,25 +530,16 @@ function EthTransferFunc() {
     to: string;
     balance: number;
   }) {
+    setToastTitle("Transferring WSOL");
     try {
       // 2. 发送交易
-      const hash = await writeContractAsync({
+      const hash = await EthControll({
         abi: ETH_TRANSFER_SOL_TO_SOL_ABI,
         address: EVM_WSOL_CONTRACT,
         functionName: "transfer",
         args: [to as `0x${string}`, parseUnits(balance.toString(), 9)],
       });
-      console.log("hash--ethereumTransferSplBalanceToEvm--", hash);
-      if (hash) {
-        handleTransactionSuccess(
-          hash,
-          `https://sepolia.etherscan.io/tx/${hash}`
-        );
-        setIsOpen(false);
-      } else {
-        toast.error("Transaction failed");
-        setIsOpen(false);
-      }
+      console.log("hash--ethereumTransferSolBalanceToEth--", hash);
     } catch (e) {
       console.log("e", e);
       toast.error("Transaction failed");

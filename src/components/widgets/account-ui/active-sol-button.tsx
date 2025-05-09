@@ -23,25 +23,31 @@ import {
   UNI_PROXY,
   WORMHOLE_EVM_CHAIN_ID,
 } from "@/config";
-import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useWriteContract } from "wagmi";
 import { serialize } from "borsh";
 
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 const programTest = "DViLwexyLUuKRRXWCQgFYqzoVLWktEbvUVhzKNZ7qTSF";
 import LoadingSpinner from "@/components/ui/loading-spinner";
-import { useEffect } from "react";
+
 import { useFetchAddress } from "@/hooks/bolaryty/useFetchAddress";
 import { AccountMeta, RawDataSchema } from "@/config/solala";
+import ethContractTransfer from "@/hooks/transfer/ethTransfer";
 
 const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
   const [refreshing, setRefreshing] = useState(false);
 
-  const { writeContract, data: hash } = useWriteContract();
+  const { data: hash } = useWriteContract();
   const { SolRefreshProxyAddress } = useBolarityWalletProvider();
 
   const { fetchProxySolanaAddress } = useFetchAddress();
-
+  const { EthControll, isLoading } = ethContractTransfer();
+  useEffect(() => {
+    if (!isLoading) {
+      refreshSolAddress();
+    }
+  }, [isLoading]);
   const handleActiveAccount = async () => {
     setRefreshing(true);
     const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
@@ -84,44 +90,21 @@ const ActiveSolanaAccountBtn = ({ evmAddress }: { evmAddress: string }) => {
     };
     const RawDataEncoded = Buffer.from(serialize(RawDataSchema, RawData));
 
-    writeContract(
-      {
+    try {
+      const buySharesTx = await EthControll({
         address: BOLARITY_EVM_CONTRACT,
         abi: UNI_PROXY.abi,
         functionName: "sendMessage",
         args: [toHex(Buffer.concat([sepoliaPayloadHead, RawDataEncoded]))],
-      },
-      {
-        onSuccess: (hash) => {
-          console.log("hash--active--", hash);
-        },
-        onError: (error) => {
-          setRefreshing(false);
-          console.log("error--active--", error);
-          toast.error(
-            "Transaction failed: " + error.toString().substring(0, 100)
-          );
-        },
-      }
-    );
+      });
+
+      console.log("property transaction hash:", buySharesTx);
+    } catch (err: any) {
+      setRefreshing(false);
+      console.log("Transaction Failed: " + err.message);
+    }
   };
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash,
-    });
-  useEffect(() => {
-    // if (isConfirming) {
-    //   console.log("isConfirming", isConfirming);
-    //   toast.success("Confirming...", {
-    //     id: hash,
-    //   });
-    // }
-    if (isConfirmed) {
-      console.log("isConfirmed", isConfirmed);
-      refreshSolAddress();
-    }
-  }, [hash, isConfirmed, isConfirming]);
   const refreshSolAddress = () => {
     toast.success("Confirming...");
     let attemptCount = 0;

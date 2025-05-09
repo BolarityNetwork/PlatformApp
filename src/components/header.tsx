@@ -18,7 +18,7 @@ const WalletButton = dynamic(() => import("./widgets/wallet-ui"), {
 const pages: { label: string; path: string }[] = [
   { label: "Portfolio", path: "/portfolio" },
   { label: "Vaults", path: "/vaults" },
-  { label: "Campaign", path: "/campaign" },
+  { label: "🔥 Campaign", path: "/campaign" },
   { label: "NCN", path: "/ncn" },
 
   { label: "Dashboard", path: "/dashboard" },
