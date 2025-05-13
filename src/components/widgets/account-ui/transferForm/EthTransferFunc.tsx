@@ -5,12 +5,14 @@ import {
   BOLARITY_EVM_CONTRACT,
   BOLARITY_SOLANA_CONTRACT,
   CurrencyEnum,
+  SOLANA_USDC_CONTRACT,
   ETH_CONTROLLED_SOL_TOKEN,
   EVM_USDC_CONTRACT,
   EVM_USDT_CONTRACT,
   EVM_WSOL_CONTRACT,
   TOKEN_BRIDGE_RELAYER,
   TOKEN_BRIDGE_RELAYER_CONTRACT,
+  TOKEN_CLAIM_PROGRAM,
   UNI_PROXY,
   WORMHOLE_EVM_CHAIN_ID,
 } from "@/config";
@@ -51,17 +53,27 @@ import { useWidgetsProvider } from "@/providers/widgets-provider";
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
 
 import { publicClient } from "@/config/wagmi";
-import { RawDataSchema, encodeMeta } from "@/config/solala";
+import {
+  AccountMeta,
+  RawDataSchema,
+  SolanaAccountMetaList,
+  encodeMeta,
+} from "@/config/solala";
 import ethContractTransfer from "@/hooks/transfer/ethTransfer";
 import { useEffect } from "react";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 const STATIC_AMOUNT = 0.01; //最低转账金额
 
 function EthTransferFunc() {
   const { writeContract, writeContractAsync } = useWriteContract();
-  const { evmAddress, CheckApproveTransfer } = useBolarityWalletProvider();
+  const { evmAddress, solAddress, CheckApproveTransfer } =
+    useBolarityWalletProvider();
   const { EthControll, isLoading, setToastTitle } = ethContractTransfer();
 
   const { setIsOpen } = useWidgetsProvider();
+
+  const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
+  const USDC_Mint = new PublicKey(SOLANA_USDC_CONTRACT);
 
   // TODO: 发送ETH转账:  eth控制sol地址转sol
   const ethereumTransferEthBalanceToSolana = async ({
@@ -87,7 +99,6 @@ function EthTransferFunc() {
     console.log("eth控制sol地址----amount_sol", amount_sol);
     console.log("eth控制sol地址----amountInWei", amountInWei);
     // 2. 构建交易消息
-    const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
     const paras = sliceBuffer(sha256("transfer"), 0, 8);
     const encodedParams = Buffer.concat([paras, writeBigUint64LE(amountInWei)]);
 
@@ -372,7 +383,6 @@ function EthTransferFunc() {
     const destinationPublicKey = Buffer.from(hexStringToUint8Array(to));
 
     // 2. 构建交易消息
-    const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
 
     const paras = Buffer.from("crosstsf");
 
@@ -546,6 +556,127 @@ function EthTransferFunc() {
       setIsOpen(false);
     }
   }
+  // 添加到组件内部或提取到单独的工具函数
+  const handleDriftTransaction = async (
+    payload: any,
+    ethController: any,
+    title: string
+  ) => {
+    try {
+      const resHash = await ethController({
+        abi: UNI_PROXY.abi,
+        address: BOLARITY_EVM_CONTRACT,
+        functionName: "sendMessage",
+        args: [toHex(Buffer.concat([sepoliaPayloadHead, payload]))],
+      });
+      console.log(`${title} result:`, resHash);
+      if (!resHash) {
+        setIsOpen(false);
+      }
+    } catch (error: any) {
+      console.error(`${title} error:`, error);
+      toast.error(`${title} Failed.`);
+
+      setIsOpen(false);
+    }
+  };
+  // TODO:  eth controll  sol address transfer usdc
+  const EthTxSOLBalanceUsdcToSola = async ({
+    address,
+    amount,
+    splTokenAddress = USDC_Mint,
+    isUsdc = 0,
+  }: {
+    address: string;
+    amount: number;
+    splTokenAddress?: PublicKey;
+    isUsdc?: number;
+  }) => {
+    const amountInWei = parseUnits(amount.toString(), 6); // Convert ETH to wei
+    const destinationPublicKey = new PublicKey(address);
+    console.log("eth控制sol地址----amount", amount);
+    console.log("eth控制sol地址----amountInWei", amountInWei);
+    // 2. 构建交易消息
+
+    const ethAddress = rightAlignBuffer(
+      Buffer.from(hexStringToUint8Array(evmAddress))
+    );
+
+    const paras = Buffer.from([0x0c]);
+
+    const decimalBuf = Buffer.alloc(1);
+
+    decimalBuf.writeUint8(6); // udsc 6 decimals
+
+    const encodedParams = Buffer.concat([
+      paras,
+      writeBigUint64LE(amountInWei),
+      decimalBuf,
+    ]);
+    const addressKey = new PublicKey(solAddress);
+    const usdcTokenAta = getAssociatedTokenAddressSync(
+      splTokenAddress, // usdc mint
+      addressKey,
+      true
+    );
+    const destination = getAssociatedTokenAddressSync(
+      splTokenAddress, // usdc mint
+      destinationPublicKey,
+      true
+    );
+
+    const encodeMeta = serialize(AccountMeta, SolanaAccountMetaList);
+
+    console.log("usdc--proxy address-", destination.toBase58());
+    console.log("usdc--WORMHOLE_EVM_CHAIN_ID-", WORMHOLE_EVM_CHAIN_ID);
+
+    const RawData_usdc = {
+      chain_id: WORMHOLE_EVM_CHAIN_ID,
+      caller: ethAddress,
+      programId: new PublicKey(TOKEN_CLAIM_PROGRAM).toBuffer(),
+      acc_count: 5,
+      accounts: [
+        {
+          key: usdcTokenAta.toBuffer(), // proxy account ata account
+          isWritable: SolanaAccountMetaList[0].writeable,
+          isSigner: SolanaAccountMetaList[0].is_signer,
+        },
+        {
+          key: splTokenAddress.toBuffer(), // usdc mint,or btc mint, or other...
+          isWritable: SolanaAccountMetaList[1].writeable,
+          isSigner: SolanaAccountMetaList[1].is_signer,
+        },
+        {
+          // key: new PublicKey(destination).toBuffer(), // dest ata address
+          key: destination.toBuffer(), // dest ata address
+          isWritable: SolanaAccountMetaList[2].writeable,
+          isSigner: SolanaAccountMetaList[2].is_signer,
+        },
+        {
+          key: addressKey.toBuffer(),
+          isWritable: SolanaAccountMetaList[3].writeable,
+          isSigner: SolanaAccountMetaList[3].is_signer,
+        },
+        {
+          key: addressKey.toBuffer(),
+          isWritable: SolanaAccountMetaList[4].writeable,
+          isSigner: SolanaAccountMetaList[4].is_signer,
+        },
+      ],
+      paras: encodedParams,
+      acc_meta: Buffer.from(encodeMeta),
+    };
+    const RawDataEncoded = Buffer.from(serialize(RawDataSchema, RawData_usdc));
+    const isUsdcTitle = (isUsdc && "BTC") || "USDC";
+    setToastTitle(`Transfer ${isUsdcTitle}`);
+
+    // 3. send tx
+    await handleDriftTransaction(
+      RawDataEncoded,
+      EthControll,
+      `Transfer ${isUsdcTitle}`
+    );
+  };
 
   return {
     ethereumTransferEthBalanceToSolana,
@@ -555,6 +686,8 @@ function EthTransferFunc() {
     ethTransferToSolBalanceToSolana,
     ethereumCoontrollSolBalanceToEth,
     ethTransferCheckApprove,
+    EthTxSOLBalanceUsdcToSola,
+    handleDriftTransaction,
   };
 }
 

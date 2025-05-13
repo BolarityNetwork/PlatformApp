@@ -314,7 +314,7 @@ export const AssetsTable = () => {
     data: accountBalance,
     refetch: fetchBalance,
   } = useGetBalance();
-  const { solBalance, solBolBalance, solUsdcBalance } =
+  const { solBalance, solBolBalance, solUsdcBalance, solBtcBalance } =
     useSolanaAccountBalance();
   const { feedsData } = useFeedsData();
   const usdc_arr = useMemo(() => {
@@ -372,6 +372,27 @@ export const AssetsTable = () => {
 
     return bolList;
   }, [solBolBalance, feedsData, ChainType]);
+  const sol_btc_coin = useMemo(() => {
+    if (!ChainType || !feedsData) return [];
+
+    let bolList = [];
+
+    if (solBtcBalance) {
+      const bitcoin = {
+        icon: "/bitcoin.svg",
+        symbol: CurrencyEnum.BTC,
+        price: feedsData.btc.formattedPrice,
+        change24h: feedsData.btc.change24h,
+        value: solBtcBalance * feedsData.btc.price,
+        amount: solBtcBalance,
+        network: "Solana",
+        networkIcon: <SiSolana size={24} />,
+      };
+      bolList.push(bitcoin);
+    }
+
+    return bolList;
+  }, [solBtcBalance, feedsData, ChainType]);
 
   useEffect(() => {
     if (!ChainType) {
@@ -586,6 +607,19 @@ export const AssetsTable = () => {
                     if (solAddress && evmAddress) {
                       setIsOpen(true);
                       setInitFromChain(CurrencyEnum.BOLARITY);
+                    } else {
+                      toast.error("Please Activate Proxy Address");
+                    }
+                  }}
+                  onReceive={() => setIsReceive(true)}
+                />
+                {/* BTC Balance */}
+                <MuitlAssetRow
+                  assets={sol_btc_coin}
+                  onSend={() => {
+                    if (solAddress && evmAddress) {
+                      setIsOpen(true);
+                      setInitFromChain(CurrencyEnum.BTC);
                     } else {
                       toast.error("Please Activate Proxy Address");
                     }

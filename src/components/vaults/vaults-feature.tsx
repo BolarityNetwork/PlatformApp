@@ -217,7 +217,7 @@ const VaultsFeature = () => {
             <div>
               <div className="text-xs uppercase mb-2">Platform</div>
               <div className="text-xs text-gray-400 uppercase mb-2">TVL ℹ️</div>
-              <div className="text-2xl font-bold">$276.58 M</div>
+              <div className="text-2xl font-bold">$276.58 K</div>
             </div>
             <div>
               <div className="text-xs uppercase mb-2">&nbsp;</div>
