@@ -25,6 +25,12 @@ export const Eth_Set_From_Chain_LIst = [
       value: CurrencyEnum.USDC,
       iconUrl: "/usdc.png",
     },
+    {
+      name: "BTC",
+      text: "BTC",
+      value: CurrencyEnum.BTC,
+      iconUrl: "/bitcoin.svg",
+    },
   ],
   SetFromChainLIst = [
     ...Eth_Set_From_Chain_LIst,

@@ -34,7 +34,14 @@ import {
 } from "./vaults-data";
 
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useState, Suspense, startTransition, useRef } from "react";
+import {
+  useState,
+  Suspense,
+  startTransition,
+  useRef,
+  useMemo,
+  useEffect,
+} from "react";
 
 import { cn, FormatNumberWithDecimals } from "@/lib/utils";
 import { LidoDepositModal, Valuts_RightCard } from "./vaults-ui";
@@ -48,7 +55,6 @@ import {
 
 // 注意：wallet 组件只能 client-side 使用
 
-import { useEffect } from "react";
 import { Input } from "../ui/input";
 import { VaultsBalance } from "../widgets/account-ui/vaults-balance";
 
@@ -116,56 +122,66 @@ const VaultsFeature = () => {
 
   // 解构统计数据，防止TS报错
 
-  const TableHeaderArr = [
-    {
-      name: "USDT",
-      icon: "/tether.png",
-      apy: getAAVEBalance.apyUsdt,
-      network: <FaEthereum size={24} />,
-      app: "/aave.png",
-      wallet: getAAVEBalance.evmUsdt,
-      deposited: getAAVEBalance.depositedUsdt,
-    },
-    {
-      name: "ETH",
-      icon: "/ethereum.svg",
-      network: <FaEthereum size={24} />,
-      app: "/lido.svg",
-      wallet: getLidoBalance.balance,
-      deposited: getLidoBalance.depositedEth,
-      apy: getLidoBalance.apyEth,
-    },
-    {
-      name: "USDC",
-      icon: "/usdc.png",
-      apy: driftSolApy?.usdc || 0,
-      network: <SiSolana size={24} />,
+  const TableHeaderArr = useMemo(
+    () => [
+      {
+        name: "USDT",
+        icon: "/tether.png",
+        apy: getAAVEBalance.apyUsdt,
+        network: <FaEthereum size={24} />,
+        app: "/aave.png",
+        wallet: getAAVEBalance.evmUsdt,
+        deposited: getAAVEBalance.depositedUsdt,
+      },
+      {
+        name: "ETH",
+        icon: "/ethereum.svg",
+        network: <FaEthereum size={24} />,
+        app: "/lido.svg",
+        wallet: getLidoBalance.balance,
+        deposited: getLidoBalance.depositedEth,
+        apy: getLidoBalance.apyEth,
+      },
+      {
+        name: "USDC",
+        icon: "/usdc.png",
+        apy: driftSolApy?.usdc || 0,
+        network: <SiSolana size={24} />,
+        app: "/aave.png",
+        wallet: solUsdcBalance,
+        deposited: driftBalance?.usdc || 0,
+      },
+      {
+        name: "BTC",
+        icon: "/bitcoin.svg",
+        apy: driftSolApy?.btc || 0,
+        network: <SiSolana size={24} />,
 
-      app: "/aave.png",
-      wallet: solUsdcBalance,
-      deposited: driftBalance?.usdc || 0,
-    },
-    {
-      name: "BTC",
-      icon: "/bitcoin.svg",
-      apy: driftSolApy?.btc || 0,
-      network: <SiSolana size={24} />,
+        app: "/aave.png",
+        wallet: solBtcBalance,
+        deposited: driftBalance?.btc || 0,
+      },
 
-      app: "/aave.png",
-      wallet: solBtcBalance,
-      deposited: driftBalance?.btc || 0,
-    },
-
-    {
-      name: "SOL",
-      icon: "/solana.svg",
-      apy: driftSolApy?.sol || 0,
-      network: <SiSolana size={24} />,
-      app: "/lido.svg",
-      wallet: FormatNumberWithDecimals(solBalance, 4, 6),
-      deposited: driftBalance?.sol || 0,
-    },
-  ];
+      {
+        name: "SOL",
+        icon: "/solana.svg",
+        apy: driftSolApy?.sol || 0,
+        network: <SiSolana size={24} />,
+        app: "/lido.svg",
+        wallet: FormatNumberWithDecimals(solBalance, 4, 6),
+        deposited: driftBalance?.sol || 0,
+      },
+    ],
+    [
+      getAAVEBalance,
+      getLidoBalance,
+      driftSolApy,
+      solUsdcBalance,
+      driftBalance,
+      solBtcBalance,
+      solBalance,
+    ]
+  );
 
   const [selectedAsset, setSelectedAsset] = useState({
     apy: 0,
@@ -181,7 +197,7 @@ const VaultsFeature = () => {
       });
     }
   }, [ChainType, evmAddress]);
-  const rightCardRef = useRef<HTMLDivElement>(null);
+  const rightCardRef = useRef(null);
 
   const amountType = {
     depositedUsdt: getAAVEBalance.depositedUsdt || 0,
@@ -217,7 +233,7 @@ const VaultsFeature = () => {
             <div>
               <div className="text-xs uppercase mb-2">Platform</div>
               <div className="text-xs text-gray-400 uppercase mb-2">TVL ℹ️</div>
-              <div className="text-2xl font-bold">$276.58 M</div>
+              <div className="text-2xl font-bold">$276.58 K</div>
             </div>
             <div>
               <div className="text-xs uppercase mb-2">&nbsp;</div>
@@ -348,7 +364,7 @@ const VaultsFeature = () => {
 
                           <div className="text-left">
                             {FormatNumberWithDecimals(
-                              selectedAsset?.deposited,
+                              TableHeaderArr[0]?.deposited,
                               4,
                               6
                             )}
@@ -434,7 +450,7 @@ const VaultsFeature = () => {
                     </div>
                   </div>
                   {/* Time Deposit */}
-                  <div className="mb-4">
+                  {/* <div className="mb-4">
                     <div className="section-header grid grid-cols-4 uppercase text-primary text-xs">
                       <div>Time Deposit</div>
                       <div>Amount</div>
@@ -453,7 +469,7 @@ const VaultsFeature = () => {
                       <div className="nowrap col-span-2">30 Fed 2025</div>
                       <div>26.7 %</div>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               )) || (
                 <div ref={rightCardRef}>
@@ -512,7 +528,7 @@ const VaultsFeature = () => {
 
                             <div className="text-left">
                               {FormatNumberWithDecimals(
-                                selectedAsset?.deposited,
+                                TableHeaderArr[selectIndex]?.deposited,
                                 4,
                                 6
                               )}

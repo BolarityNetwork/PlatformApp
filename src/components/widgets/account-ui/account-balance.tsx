@@ -10,7 +10,7 @@ const AccountBalance = () => {
   const { isLoading, data: accountBalance } = useGetBalance();
 
   const { feedsData } = useFeedsData();
-  const { solBalance, solBolBalance, solUsdcBalance } =
+  const { solBalance, solBolBalance, solUsdcBalance, solBtcBalance } =
     useSolanaAccountBalance();
   console.log("ws-sol---balance", solBalance);
   const balanceAmount = useMemo(() => {
@@ -30,7 +30,8 @@ const AccountBalance = () => {
       ethUsdcBalance * feedsData?.usdc?.price +
       ethUsdtBalance * feedsData?.usdt?.price +
       solBolBalance * feedsData?.bol?.price +
-      solUsdcBalance * feedsData?.usdc?.price;
+      solUsdcBalance * feedsData?.usdc?.price +
+      solBtcBalance * feedsData?.btc?.price;
 
     console.log("total", total);
     return total.toFixed(2);

@@ -14,7 +14,7 @@ import {
   DRIFT_ACCOUNT_ID,
   DRIFT_MARKET_INFO,
   DRIFT_BTC_MINT,
-  DRIFT_USDC_MINT,
+  SOLANA_USDC_CONTRACT,
 } from "@/config";
 
 import ethContractTransfer from "@/hooks/transfer/ethTransfer";
@@ -34,7 +34,7 @@ const sub_account_id = DRIFT_ACCOUNT_ID;
 const usdc_market_index = DRIFT_MARKET_INFO.usdc.market_index; // usdc
 const btc_market_index = DRIFT_MARKET_INFO.btc.market_index; // btc
 const BTC_MINT = new PublicKey(DRIFT_BTC_MINT); // btc mint
-const USDC_MINT = new PublicKey(DRIFT_USDC_MINT); // btc mint
+const USDC_MINT = new PublicKey(SOLANA_USDC_CONTRACT); // btc mint
 function EvmDriftBtcModal({
   //aave  存款 提现 弹框
   deposit_coin = "BTC",

@@ -1,5 +1,6 @@
 import React from "react";
 import { useForm } from "react-hook-form";
+import { serialize } from "borsh";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,10 +11,13 @@ import {
   CurrencyEnum,
   EVM_WSOL_CONTRACT,
   SOLANA_USDC_CONTRACT,
+  DRIFT_BTC_MINT,
   SupportChain,
   WORMHOLE_EVM_CHAIN_NAME,
   WORMHOLE_SOLANA_BRIDGE,
   WORMHOLE_SOLANA_TOKEN_BRIDGE,
+  WORMHOLE_EVM_CHAIN_ID,
+  BOLARITY_SOLANA_CONTRACT,
 } from "@/config";
 import { transferNativeSol, ChainName } from "@certusone/wormhole-sdk";
 
@@ -21,7 +25,9 @@ import {
   FormatNumberWithDecimals,
   formatRecipientAddress,
   handleTransactionSuccess,
+  hexStringToUint8Array,
   isSolanaAddress,
+  rightAlignBuffer,
   solanaPayloadHead,
 } from "@/lib/utils";
 
@@ -66,8 +72,16 @@ import {
 } from "./form-data";
 
 import { useBolarityWalletProvider } from "@/providers/bolarity-wallet-provider";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useSolanaAccountBalance } from "@/providers/useSolanaAccountBalance";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import ethContractTransfer from "@/hooks/transfer/ethTransfer";
+import { AtaAccountMeta, AtaEncodeMeta, RawDataSchema } from "@/config/solala";
+import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 
 const STATIC_AMOUNT = 0.01,
   validAmountFormat = /^(0|[1-9]\d*)(\.\d{1,9})?$/;
@@ -83,10 +97,20 @@ const TransferForm = ({
   evmAddress: string;
 }) => {
   const { setIsOpen, initFromChain } = useWidgetsProvider();
+  const USDC_Mint = new PublicKey(SOLANA_USDC_CONTRACT);
+  const BTC_Mint = new PublicKey(DRIFT_BTC_MINT);
+  const HELLO_WORLD_PID = new PublicKey(BOLARITY_SOLANA_CONTRACT);
 
-  const { CheckApproveTransfer, ChainType: Chainlink_type } =
-    useBolarityWalletProvider();
-  const { solBalance, solBolBalance, solUsdcBalance } =
+  // const [splTokenType, setSplTokenType] = useState(0);
+  const splTokenType = useRef(0);
+
+  const {
+    CheckApproveTransfer,
+    solAddress,
+    ChainType: Chainlink_type,
+  } = useBolarityWalletProvider();
+
+  const { solBalance, solBolBalance, solUsdcBalance, solBtcBalance } =
     useSolanaAccountBalance();
   console.log("ws-sol---balance", solBalance);
 
@@ -96,6 +120,7 @@ const TransferForm = ({
     watch,
     formState: { errors },
     setValue,
+    getValues,
   } = useForm({
     locale: "en",
     defaultValues: {
@@ -112,6 +137,128 @@ const TransferForm = ({
   const { getExplorerUrl } = useCluster();
   const { sendTransactionAsync } = useSendTransaction();
 
+  const { EthControll, isLoading, setToastTitle } = ethContractTransfer();
+  useEffect(() => {
+    if (!isLoading) {
+      console.log("创建ata成功，执行转账");
+      EthTxSOLBalanceUsdcToSola({
+        ...getValues(),
+        splTokenAddress: splTokenType.current == 0 ? USDC_Mint : BTC_Mint,
+        isUsdc: splTokenType.current,
+      });
+    }
+  }, [isLoading]);
+  const CreateSolAtaAccount = async (mintAddress: PublicKey) => {
+    const title = "Create Associated Token Address";
+    const splTokenAta = splTokenType.current === 0 ? USDC_Mint : BTC_Mint;
+
+    toast.info(`You need ${title} to ${splTokenAta.toBase58()}`);
+
+    const encodedParams = Buffer.from([1]);
+
+    const ethAddress = rightAlignBuffer(
+      Buffer.from(hexStringToUint8Array(evmAddress))
+    );
+
+    const realForeignEmitter = deriveAddress(
+      [
+        Buffer.from("pda"),
+        (() => {
+          const buf = Buffer.alloc(2);
+          buf.writeUInt16LE(WORMHOLE_EVM_CHAIN_ID);
+          return buf;
+        })(),
+        ethAddress,
+      ],
+      HELLO_WORLD_PID
+    );
+
+    const usdcTokenAta = getAssociatedTokenAddressSync(
+      splTokenAta, // usdc mint
+      mintAddress,
+      true
+    );
+
+    const RawData = {
+      chain_id: WORMHOLE_EVM_CHAIN_ID,
+      caller: ethAddress,
+      programId: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID).toBuffer(),
+      acc_count: 6,
+      accounts: [
+        {
+          key: realForeignEmitter.toBuffer(), // payer
+          isWritable: AtaAccountMeta[0].writeable,
+          isSigner: AtaAccountMeta[0].is_signer,
+        },
+        {
+          key: new PublicKey(usdcTokenAta).toBuffer(), // associatedToken
+          isWritable: AtaAccountMeta[1].writeable,
+          isSigner: AtaAccountMeta[1].is_signer,
+        },
+        {
+          // key: new PublicKey(destination).toBuffer(), // dest ata address
+
+          key: mintAddress.toBuffer(), //owner
+          isWritable: AtaAccountMeta[2].writeable,
+          isSigner: AtaAccountMeta[2].is_signer,
+        },
+        {
+          key: splTokenAta.toBuffer(), // usdc mint
+          isWritable: AtaAccountMeta[3].writeable,
+          isSigner: AtaAccountMeta[3].is_signer,
+        },
+        {
+          key: new PublicKey("11111111111111111111111111111111").toBuffer(), // SYSTEM_PROGRAM_ID
+          isWritable: AtaAccountMeta[4].writeable,
+          isSigner: AtaAccountMeta[4].is_signer,
+        },
+        {
+          key: new PublicKey(TOKEN_PROGRAM_ID).toBuffer(),
+          isWritable: AtaAccountMeta[5].writeable,
+          isSigner: AtaAccountMeta[5].is_signer,
+        },
+      ],
+      paras: encodedParams,
+      acc_meta: Buffer.from(AtaEncodeMeta),
+    };
+    const RawDataEncoded = Buffer.from(serialize(RawDataSchema, RawData));
+    // 3. 发送交易
+
+    setToastTitle(title);
+
+    await handleDriftTransaction(RawDataEncoded, EthControll, title);
+  };
+  // check solana ata account status
+  const CheckSolanaAtaAccount = async ({
+    to,
+    amount,
+  }: {
+    to: string;
+    amount: number;
+  }) => {
+    const destinationPublicKey = new PublicKey(to);
+    console.log("splTokenType", splTokenType.current);
+    const mintAddress = splTokenType.current === 0 ? USDC_Mint : BTC_Mint;
+    console.log("mintAddress", mintAddress.toBase58());
+    const destination = getAssociatedTokenAddressSync(
+      mintAddress,
+      destinationPublicKey,
+      true
+    );
+    const receiverAccountInfo = await connection.getAccountInfo(destination);
+    console.log("receiverAccountInfo--", receiverAccountInfo);
+    if (receiverAccountInfo) {
+      console.log("有ata,直接转账");
+      EthTxSOLBalanceUsdcToSola({
+        address: to,
+        amount,
+        isUsdc: splTokenType.current,
+      });
+    } else {
+      console.log("没有ata,需要执行创建ata");
+      CreateSolAtaAccount(destinationPublicKey);
+    }
+  };
   // 发送Solana转账: Solana -> Ethereum - 完成
   const solanaToEth = async (amount: number, address: string) => {
     const { ethSolBalance = 0 }: any = accountBalance;
@@ -255,6 +402,8 @@ const TransferForm = ({
     ethereumTransferSolBalanceToEth,
     ethereumCoontrollSolBalanceToEth,
     ethTransferCheckApprove,
+    EthTxSOLBalanceUsdcToSola,
+    handleDriftTransaction,
   } = EthTransferFunc();
 
   // 2.1 发送EVM转账 eth -> eth
@@ -400,10 +549,7 @@ const TransferForm = ({
             balance: amount,
           });
         }
-      } else if (
-        (fromChain === CurrencyEnum.USDT && currentChainTo) ||
-        (fromChain === CurrencyEnum.USDC && currentChainTo)
-      ) {
+      } else if (fromChain === CurrencyEnum.USDT && currentChainTo) {
         console.log("当前ETH转账支持USDT和USDC");
         // 2.2 发送EVM转账 usdt -> usdt  usdc -> usdc
         ethereumTransferSplBalanceToEvm({
@@ -418,6 +564,22 @@ const TransferForm = ({
         console.log("控制sol地址--SOL");
         console.log("currentBalance_sol", currentBalance_sol);
         checkApproveEthSolToSol(amount, address);
+      } else if (
+        fromChain === CurrencyEnum.USDC &&
+        network === CurrencyEnum.SOLANA
+      ) {
+        console.log("usdc");
+
+        console.log("getvalue---", getValues());
+        splTokenType.current = 0;
+        CheckSolanaAtaAccount({ to: address, amount });
+      } else if (
+        fromChain === CurrencyEnum.BTC &&
+        network === CurrencyEnum.SOLANA
+      ) {
+        console.log("btc");
+        splTokenType.current = 1;
+        CheckSolanaAtaAccount({ to: address, amount });
       }
     } else {
       console.log("本链转账--SOL---network---", network);
@@ -489,6 +651,17 @@ const TransferForm = ({
           balance: amount,
           contract: CLAIM_TOKEN_CONTRACT,
         });
+      } else if (
+        fromChain === CurrencyEnum.BTC &&
+        network === CurrencyEnum.SOLANA
+      ) {
+        console.log("本链转账--BTC");
+        solanaTransferSplToken({
+          toPubkey: new PublicKey(address),
+          balance: amount,
+          contract: DRIFT_BTC_MINT,
+          decimals: 6,
+        });
       }
     }
   };
@@ -545,6 +718,8 @@ const TransferForm = ({
       return FormatNumberWithDecimals(solUsdcBalance + ethUsdcBalance, 4, 6);
     } else if (watchFromChain === CurrencyEnum.BOLARITY) {
       return solBolBalance;
+    } else if (watchFromChain === CurrencyEnum.BTC) {
+      return solBtcBalance;
     }
   }, [watchFromChain, accountBalance]);
 
@@ -799,6 +974,8 @@ const TransferForm = ({
               (watchFromChain === CurrencyEnum.USDT &&
                 watch("network") === CurrencyEnum.SOLANA) ||
               (watchFromChain === CurrencyEnum.BOLARITY &&
+                watch("network") === CurrencyEnum.ETHEREUM) ||
+              (watchFromChain === CurrencyEnum.BTC &&
                 watch("network") === CurrencyEnum.ETHEREUM)
             }
           >
